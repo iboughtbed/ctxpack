@@ -7,14 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "honojs",
-    "nextjs",
-    "@repo/auth",
-    "@repo/db",
-    "@repo/sandbox",
-    "@repo/eslint-config",
-    "@repo/prettier-config",
-    "@repo/typescript-config"
-  ]
+  "ignore": []
 }
