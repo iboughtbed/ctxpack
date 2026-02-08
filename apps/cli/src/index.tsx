@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { emitKeypressEvents } from "node:readline";
@@ -53,6 +54,7 @@ import {
 } from "./lib/openai-auth";
 
 type SearchMode = "hybrid" | "text" | "vector";
+declare const __VERSION__: string | undefined;
 
 type ApiContext = {
   client: CtxpackApiClient;
@@ -95,6 +97,29 @@ const SUPPORTED_CONNECT_PROVIDERS: ConnectProvider[] = [
   },
 ];
 
+function resolveCliVersion(): string {
+  if (typeof __VERSION__ !== "undefined" && __VERSION__) {
+    return __VERSION__;
+  }
+
+  try {
+    const currentFile = fileURLToPath(import.meta.url);
+    const packageJsonPath = resolvePath(dirname(currentFile), "..", "package.json");
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+      version?: string;
+    };
+    if (packageJson.version) {
+      return packageJson.version;
+    }
+  } catch {
+    // Fall through.
+  }
+
+  return process.env.npm_package_version ?? "0.0.0-dev";
+}
+
+const CLI_VERSION = resolveCliVersion();
+
 function printSupportedConnectProviders(): void {
   console.log("Supported providers:");
   for (const provider of SUPPORTED_CONNECT_PROVIDERS) {
@@ -131,6 +156,9 @@ function printHelp(): void {
   console.log(
     [
       "ctxpack CLI",
+      "",
+      "Meta:",
+      "  ctxpack --version, -v                             Print CLI version",
       "",
       "Setup:",
       "  ctxpack                                            Create ./ctxpack.config.jsonc (if missing)",
@@ -192,6 +220,10 @@ function printHelp(): void {
       "  --api-key <key>    Override API key for this command",
     ].join("\n"),
   );
+}
+
+function printVersion(): void {
+  console.log(CLI_VERSION);
 }
 
 function toErrorMessage(error: unknown): string {
@@ -2048,6 +2080,9 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
   const command = parsed.command ?? "help";
 
   switch (command) {
+    case "version":
+      printVersion();
+      return;
     case "help":
     case "--help":
     case "-h":
@@ -2136,6 +2171,10 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
 async function main(): Promise<void> {
   const parsed = parseArgv(process.argv.slice(2));
   if (!parsed.command) {
+    if (getOptionBoolean(parsed.options, ["version", "v", "V"])) {
+      printVersion();
+      return;
+    }
     if (getOptionBoolean(parsed.options, ["help", "h"])) {
       printHelp();
       return;
