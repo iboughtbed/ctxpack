@@ -37,10 +37,12 @@ jobs:
         run: bun run --cwd apps/cli build
 
       - name: Create Release PR or Publish
+        id: changesets
         uses: changesets/action@v1
         with:
           version: bun run version-packages
-          publish: npm publish ./apps/cli --access public --provenance
+          publish: npm publish ./apps/cli --access public
+          createGithubReleases: true
           title: "chore: release ctxpack"
           commit: "chore: version packages"
         env:
