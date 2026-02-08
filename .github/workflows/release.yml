@@ -41,7 +41,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bun run version-packages
-          publish: npm publish ./apps/cli --access public
+          publish: bunx @changesets/cli publish
           createGithubReleases: true
           title: "chore: release ctxpack"
           commit: "chore: version packages"

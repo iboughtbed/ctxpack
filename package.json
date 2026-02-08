@@ -27,7 +27,7 @@
     "ctxpack": "bun run cli:run --",
     "changeset": "bunx @changesets/cli",
     "version-packages": "bunx @changesets/cli version",
-    "release": "bun run --cwd apps/cli build && bun publish --cwd apps/cli --access public"
+    "release": "bun run --cwd apps/cli build && bunx @changesets/cli publish"
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "catalog:",
