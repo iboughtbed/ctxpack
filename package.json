@@ -24,7 +24,6 @@
     "cli:dev": "dotenv -- bun run --cwd apps/cli dev",
     "cli:start": "dotenv -- bun run --cwd apps/cli start",
     "cli:run": "dotenv -- bun run apps/cli/src/index.tsx",
-    "ctxpack": "bun run cli:run --",
     "changeset": "bunx @changesets/cli",
     "version-packages": "bunx @changesets/cli version",
     "release": "bun run --cwd apps/cli build && bunx @changesets/cli publish"
