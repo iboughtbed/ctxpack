@@ -1,5 +1,7 @@
 {
   "name": "honojs",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
     "dev": "bun run --hot src/index.ts"
   },
