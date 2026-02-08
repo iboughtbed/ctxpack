@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.0.3
+
+### Patch Changes
+
+- df6f93b: fix(cli): --version/-v/version output
+
 ## 1.0.2
 
 ### Patch Changes
