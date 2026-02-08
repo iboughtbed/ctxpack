@@ -6,6 +6,11 @@
     "name": "Sanzhar",
     "url": "https://x.com/iboughtbed"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iboughtbed/ctxpack",
+    "directory": "apps/cli"
+  },
   "license": "Apache-2.0",
   "module": "src/index.tsx",
   "type": "module",
