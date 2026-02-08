@@ -40,7 +40,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bun run version-packages
-          publish: npm publish --prefix apps/cli --access public --provenance
+          publish: npm publish ./apps/cli --access public --provenance
           title: "chore: release ctxpack"
           commit: "chore: version packages"
         env:
