@@ -1,0 +1,61 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "NEXT_PUBLIC_APP_URL",
+    "CTXPACK_API_KEY",
+    "CTXPACK_API_URL",
+    "CTXPACK_CONFIG_PATH",
+    "CTXPACK_EXECUTION_MODE",
+    "CTXPACK_MODE",
+    "CTXPACK_REMOTE_GIT_INDEXING_STRATEGY",
+    "CTXPACK_REMOTE_GIT_STRATEGY",
+    "CTXPACK_SANDBOX_PROVIDER",
+    "CTXPACK_SANDBOX_REPO_PATH",
+    "CTXPACK_SANDBOX_ROOT_PATH",
+    "DAYTONA_API_KEY",
+    "DAYTONA_API_URL",
+    "DAYTONA_JWT_TOKEN",
+    "DAYTONA_ORGANIZATION_ID",
+    "DAYTONA_SANDBOX_AUTOARCHIVE_INTERVAL",
+    "DAYTONA_SANDBOX_AUTODELETE_INTERVAL",
+    "DAYTONA_SANDBOX_AUTOSTOP_INTERVAL",
+    "DAYTONA_SANDBOX_COMMAND_TIMEOUT_SECONDS",
+    "DAYTONA_SANDBOX_CREATE_TIMEOUT_SECONDS",
+    "DAYTONA_SANDBOX_DELETE_TIMEOUT_SECONDS",
+    "DAYTONA_SANDBOX_EPHEMERAL",
+    "DAYTONA_SANDBOX_LANGUAGE",
+    "DAYTONA_SANDBOX_NAME_PREFIX",
+    "DAYTONA_SANDBOX_TIMEOUT_SECONDS",
+    "DAYTONA_TARGET",
+    "REPO_STORAGE_PATH",
+    "VERCEL_SANDBOX_RUNTIME",
+    "VERCEL_SANDBOX_TIMEOUT_MS",
+    "OPENAI_API_KEY",
+    "CTXPACK_EMBEDDING_PROVIDER",
+    "CTXPACK_EMBEDDING_MODEL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

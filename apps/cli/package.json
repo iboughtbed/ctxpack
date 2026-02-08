@@ -1,0 +1,58 @@
+{
+  "name": "ctxpack",
+  "version": "1.0.0",
+  "description": "CLI tool for providing external codebase context to agents",
+  "author": {
+    "name": "Sanzhar",
+    "url": "https://x.com/iboughtbed"
+  },
+  "license": "Apache-2.0",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": false,
+  "bin": {
+    "ctxpack": "bin.js"
+  },
+  "files": [
+    "bin.js",
+    "dist/ctxpack-darwin-arm64",
+    "dist/ctxpack-darwin-x64",
+    "dist/ctxpack-linux-arm64",
+    "dist/ctxpack-linux-x64",
+    "dist/ctxpack-windows-x64.exe"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "agent",
+    "agents",
+    "cli",
+    "context"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/index.tsx",
+    "start": "bun run src/index.tsx",
+    "build": "bun run scripts/build-binaries.ts",
+    "prepublishOnly": "bun run scripts/verify-dist.ts"
+  },
+  "devDependencies": {
+    "@repo/prettier-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/bun": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-typescript": "^7.28.5",
+    "@opentui/core": "^0.1.77",
+    "@opentui/solid": "^0.1.77",
+    "babel-preset-solid": "1.9.9",
+    "solid-js": "1.9.9"
+  },
+  "prettier": "@repo/prettier-config"
+}
