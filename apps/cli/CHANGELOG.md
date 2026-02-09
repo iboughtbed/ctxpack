@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.1.0
+
+### Minor Changes
+
+- 8018b12: Improve CLI commands and server pipeline with Docker containers for pgvector
+
 ## 1.0.3
 
 ### Patch Changes
