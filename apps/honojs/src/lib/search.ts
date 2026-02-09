@@ -3,21 +3,21 @@ import { join } from "node:path";
 import { embed } from "ai";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
-import { db } from "@repo/db";
-import { chunks, resources } from "@repo/db/schema";
-import { grepInSandbox, isRemoteExecutionMode } from "@repo/sandbox";
+import { db } from "@ctxpack/db";
+import { chunks, resources } from "@ctxpack/db/schema";
+import { grepInSandbox, isRemoteExecutionMode } from "@ctxpack/sandbox";
 
 import type { ModelConfig, ProviderKeys } from "../context";
+import type { SearchResource } from "./resources";
 import { getEmbeddingModel } from "./models";
 import {
   loadScopedResources,
   loadTextSearchableResources,
   loadVectorSearchableResources,
-  normalizeResourceIds,
   normalizePath,
+  normalizeResourceIds,
   normalizeScopedPaths,
   resolveResourceRootPath,
-  type SearchResource,
 } from "./resources";
 
 export { loadScopedResources, type SearchResource } from "./resources";
@@ -131,23 +131,19 @@ export async function hybridSearch(
   }
 
   if (mode === "text") {
-    return textResults
-      .slice(0, topK)
-      .map((result) => ({
-        ...result,
-        matchType: "text",
-        matchSources: ["text"],
-      }));
+    return textResults.slice(0, topK).map((result) => ({
+      ...result,
+      matchType: "text",
+      matchSources: ["text"],
+    }));
   }
 
   if (mode === "vector") {
-    return vectorResults
-      .slice(0, topK)
-      .map((result) => ({
-        ...result,
-        matchType: "vector",
-        matchSources: ["vector"],
-      }));
+    return vectorResults.slice(0, topK).map((result) => ({
+      ...result,
+      matchType: "vector",
+      matchSources: ["vector"],
+    }));
   }
 
   return mergeHybridResults(textResults, vectorResults, alpha, topK);
@@ -274,7 +270,12 @@ async function readContextForMatches(params: {
         rangeEnd = line;
         hits += 1;
       } else {
-        ranges.push({ filepath, lineStart: rangeStart, lineEnd: rangeEnd, hits });
+        ranges.push({
+          filepath,
+          lineStart: rangeStart,
+          lineEnd: rangeEnd,
+          hits,
+        });
         rangeStart = line;
         rangeEnd = line;
         hits = 1;
@@ -302,14 +303,20 @@ async function readContextForMatches(params: {
       }
 
       const totalLines = fileLines.length;
-      const contextStart = Math.max(0, range.lineStart - 1 - TEXT_CONTEXT_LINES);
+      const contextStart = Math.max(
+        0,
+        range.lineStart - 1 - TEXT_CONTEXT_LINES,
+      );
       const contextEnd = Math.min(
         totalLines,
         range.lineEnd + TEXT_CONTEXT_LINES,
       );
 
       // Cap the window size
-      const windowEnd = Math.min(contextEnd, contextStart + TEXT_MAX_WINDOW_LINES);
+      const windowEnd = Math.min(
+        contextEnd,
+        contextStart + TEXT_MAX_WINDOW_LINES,
+      );
 
       const text = fileLines.slice(contextStart, windowEnd).join("\n");
       if (!text.trim()) continue;
@@ -346,7 +353,8 @@ async function runVectorSearch(params: {
   providerKeys?: ProviderKeys;
   modelConfig?: ModelConfig;
 }): Promise<PartialSearchResult[]> {
-  const { userId, query, resourceIds, topK, providerKeys, modelConfig } = params;
+  const { userId, query, resourceIds, topK, providerKeys, modelConfig } =
+    params;
   const scopedResources = await loadVectorSearchableResources({
     userId,
     resourceIds,
@@ -449,17 +457,95 @@ async function collectTextMatchesForResource(params: {
 /* ------------------------------------------------------------------ */
 
 const STOP_WORDS = new Set([
-  "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "shall",
-  "should", "may", "might", "must", "can", "could", "to", "of", "in",
-  "for", "on", "with", "at", "by", "from", "as", "into", "through",
-  "during", "before", "after", "about", "between", "under", "above",
-  "how", "what", "when", "where", "which", "who", "whom", "why",
-  "this", "that", "these", "those", "it", "its", "my", "your", "our",
-  "their", "his", "her", "and", "or", "not", "but", "if", "then",
-  "than", "so", "no", "up", "out", "just", "also", "very",
-  "i", "me", "we", "you", "he", "she", "they", "them",
-  "use", "using", "used",
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "can",
+  "could",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "with",
+  "at",
+  "by",
+  "from",
+  "as",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "about",
+  "between",
+  "under",
+  "above",
+  "how",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "whom",
+  "why",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "its",
+  "my",
+  "your",
+  "our",
+  "their",
+  "his",
+  "her",
+  "and",
+  "or",
+  "not",
+  "but",
+  "if",
+  "then",
+  "than",
+  "so",
+  "no",
+  "up",
+  "out",
+  "just",
+  "also",
+  "very",
+  "i",
+  "me",
+  "we",
+  "you",
+  "he",
+  "she",
+  "they",
+  "them",
+  "use",
+  "using",
+  "used",
 ]);
 
 function escapeRegex(str: string): string {

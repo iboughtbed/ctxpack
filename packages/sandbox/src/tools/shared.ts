@@ -1,7 +1,7 @@
+import type { GitSandboxResource, SandboxLike } from "../types";
 import { SANDBOX_REPO_PATH, SANDBOX_ROOT_PATH } from "../config";
 import { toErrorMessage } from "../internal/utils";
 import { createSandbox } from "../providers";
-import type { GitSandboxResource, SandboxLike } from "../types";
 
 export { SANDBOX_REPO_PATH };
 
@@ -76,7 +76,9 @@ export async function checkoutRepository(
   }
 }
 
-export async function listTrackedFiles(sandbox: SandboxLike): Promise<string[]> {
+export async function listTrackedFiles(
+  sandbox: SandboxLike,
+): Promise<string[]> {
   const output = await runCommand(
     sandbox,
     "git",
@@ -92,4 +94,3 @@ export async function listTrackedFiles(sandbox: SandboxLike): Promise<string[]> 
 export function buildSandboxScanError(error: unknown): string {
   return toErrorMessage(error);
 }
-

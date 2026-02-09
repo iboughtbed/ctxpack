@@ -1,14 +1,11 @@
-import { generateText, streamText, stepCountIs } from "ai";
+import { generateText, stepCountIs, streamText } from "ai";
 
 import type { ModelConfig, ProviderKeys } from "../context";
+import type { SearchResource } from "./resources";
+import type { SearchResult } from "./search";
 import { createAgentTools } from "./agent-tools";
 import { getChatModel, getChatModelInfo } from "./models";
-import {
-  loadScopedResources,
-  normalizeResourceIds,
-  type SearchResource,
-} from "./resources";
-import type { SearchResult } from "./search";
+import { loadScopedResources, normalizeResourceIds } from "./resources";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -190,7 +187,9 @@ export async function runAgentAsk(
         if (tr.toolName === "search" && Array.isArray(tr.output)) {
           for (const item of tr.output) {
             const sr = item as SearchResult;
-            const key = sr.chunkId ?? `${sr.resourceId}:${sr.filepath}:${String(sr.lineStart)}`;
+            const key =
+              sr.chunkId ??
+              `${sr.resourceId}:${sr.filepath}:${String(sr.lineStart)}`;
             if (!seenSourceKeys.has(key)) {
               seenSourceKeys.add(key);
               collectedSources.push(sr);

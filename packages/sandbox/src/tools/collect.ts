@@ -1,11 +1,11 @@
-import { DEFAULT_MAX_FILE_SIZE_BYTES } from "../config";
-import { filterBySearchPaths } from "../internal/utils";
 import type {
   GitSandboxResource,
   IndexableFileInput,
   SandboxIndexWarning,
 } from "../types";
-import { SANDBOX_REPO_PATH, listTrackedFiles, withGitSandbox } from "./shared";
+import { DEFAULT_MAX_FILE_SIZE_BYTES } from "../config";
+import { filterBySearchPaths } from "../internal/utils";
+import { listTrackedFiles, SANDBOX_REPO_PATH, withGitSandbox } from "./shared";
 
 export async function collectGitFileInputsInSandbox(params: {
   resource: GitSandboxResource;
@@ -28,7 +28,10 @@ export async function collectGitFileInputsInSandbox(params: {
 
   return withGitSandbox(resource, async (sandbox) => {
     const trackedFiles = await listTrackedFiles(sandbox);
-    const filteredFiles = filterBySearchPaths(trackedFiles, resource.searchPaths);
+    const filteredFiles = filterBySearchPaths(
+      trackedFiles,
+      resource.searchPaths,
+    );
     const fileInputs: IndexableFileInput[] = [];
 
     for (const filepath of filteredFiles) {
@@ -80,4 +83,3 @@ export async function collectGitFileInputsInSandbox(params: {
     return fileInputs;
   });
 }
-

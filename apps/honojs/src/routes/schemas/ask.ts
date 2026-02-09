@@ -8,10 +8,13 @@ export const AskRequestSchema = z
       description: "Natural language question about the codebase",
       example: "How does the authentication middleware work?",
     }),
-    resourceIds: z.array(z.uuid()).optional().openapi({
-      description: "Optional list of resource IDs to scope search",
-      example: ["0f1b5b9f-61e4-4d3a-9a2e-9df4f2b7c1e1"],
-    }),
+    resourceIds: z
+      .array(z.uuid())
+      .optional()
+      .openapi({
+        description: "Optional list of resource IDs to scope search",
+        example: ["0f1b5b9f-61e4-4d3a-9a2e-9df4f2b7c1e1"],
+      }),
     mode: SearchModeSchema.default("hybrid").optional().openapi({
       description: "Search strategy for retrieving context",
       example: "hybrid",
@@ -36,7 +39,9 @@ export const AskSourceSchema = SearchResultSchema.openapi({
 export const AgentToolCallSchema = z
   .object({
     toolName: z.string().openapi({ description: "Name of the tool called" }),
-    input: z.record(z.string(), z.unknown()).openapi({ description: "Tool input arguments" }),
+    input: z
+      .record(z.string(), z.unknown())
+      .openapi({ description: "Tool input arguments" }),
   })
   .openapi({ description: "A single tool call made by the agent" });
 
@@ -49,7 +54,10 @@ export const AgentToolResultSchema = z
 
 export const AgentUsageSchema = z
   .object({
-    promptTokens: z.number().int().openapi({ description: "Prompt tokens used" }),
+    promptTokens: z
+      .number()
+      .int()
+      .openapi({ description: "Prompt tokens used" }),
     completionTokens: z
       .number()
       .int()
@@ -60,7 +68,10 @@ export const AgentUsageSchema = z
 
 export const AgentStepSchema = z
   .object({
-    stepNumber: z.number().int().openapi({ description: "1-indexed step number" }),
+    stepNumber: z
+      .number()
+      .int()
+      .openapi({ description: "1-indexed step number" }),
     text: z.string().openapi({ description: "Text generated in this step" }),
     reasoning: z
       .string()
@@ -101,5 +112,6 @@ export const AskResponseSchema = z
     }),
   })
   .openapi({
-    description: "Ask response with LLM answer, source citations, and agent steps",
+    description:
+      "Ask response with LLM answer, source citations, and agent steps",
   });

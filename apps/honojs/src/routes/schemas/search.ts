@@ -8,10 +8,13 @@ export const SearchRequestSchema = z
       description: "Search query text",
       example: "How does auth middleware work?",
     }),
-    resourceIds: z.array(z.uuid()).optional().openapi({
-      description: "Optional list of resource IDs to scope search",
-      example: ["0f1b5b9f-61e4-4d3a-9a2e-9df4f2b7c1e1"],
-    }),
+    resourceIds: z
+      .array(z.uuid())
+      .optional()
+      .openapi({
+        description: "Optional list of resource IDs to scope search",
+        example: ["0f1b5b9f-61e4-4d3a-9a2e-9df4f2b7c1e1"],
+      }),
     mode: SearchModeSchema.default("hybrid").optional().openapi({
       description: "Search strategy",
       example: "hybrid",
@@ -76,8 +79,6 @@ export const SearchResultSchema = z
     description: "Single search result",
   });
 
-export const SearchResponseSchema = z
-  .array(SearchResultSchema)
-  .openapi({
-    description: "Search results",
-  });
+export const SearchResponseSchema = z.array(SearchResultSchema).openapi({
+  description: "Search results",
+});

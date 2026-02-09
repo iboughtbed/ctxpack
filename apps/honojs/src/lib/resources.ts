@@ -2,8 +2,9 @@ import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
-import { db } from "@repo/db";
-import { resources } from "@repo/db/schema";
+import { db } from "@ctxpack/db";
+import { resources } from "@ctxpack/db/schema";
+
 import { REPO_STORAGE_PATH } from "./git";
 
 export type SearchResource = {

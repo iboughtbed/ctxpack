@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { db } from "@repo/db";
-import { resources } from "@repo/db/schema";
+import { db } from "@ctxpack/db";
+import { resources } from "@ctxpack/db/schema";
 
 import {
   getGitResourcePath,
@@ -34,7 +34,9 @@ async function runGitUpdateChecks(input: CheckInput): Promise<void> {
     .from(resources)
     .where(
       and(
-        input.userId ? eq(resources.userId, input.userId) : isNull(resources.userId),
+        input.userId
+          ? eq(resources.userId, input.userId)
+          : isNull(resources.userId),
         eq(resources.type, "git"),
         eq(resources.contentStatus, "ready"),
         resourceIds.length > 0 ? inArray(resources.id, resourceIds) : undefined,

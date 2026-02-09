@@ -1,9 +1,6 @@
-import {
-  VERCEL_SANDBOX_RUNTIME,
-  VERCEL_SANDBOX_TIMEOUT_MS,
-} from "../config";
-import { shellEscape, toErrorMessage } from "../internal/utils";
 import type { SandboxLike } from "../types";
+import { VERCEL_SANDBOX_RUNTIME, VERCEL_SANDBOX_TIMEOUT_MS } from "../config";
+import { shellEscape, toErrorMessage } from "../internal/utils";
 
 type VercelCommandResultLike = {
   exitCode: number | null;
@@ -12,13 +9,22 @@ type VercelCommandResultLike = {
 };
 
 type VercelSandboxLike = {
-  runCommand: (command: string, args?: string[]) => Promise<VercelCommandResultLike>;
-  readFileToBuffer: (file: { path: string; cwd?: string }) => Promise<Buffer | null>;
+  runCommand: (
+    command: string,
+    args?: string[],
+  ) => Promise<VercelCommandResultLike>;
+  readFileToBuffer: (file: {
+    path: string;
+    cwd?: string;
+  }) => Promise<Buffer | null>;
   stop: () => Promise<void>;
 };
 
 type VercelSandboxCtor = {
-  create: (opts?: { runtime?: string; timeout?: number }) => Promise<VercelSandboxLike>;
+  create: (opts?: {
+    runtime?: string;
+    timeout?: number;
+  }) => Promise<VercelSandboxLike>;
 };
 
 async function loadSandboxCtor(): Promise<VercelSandboxCtor> {
@@ -49,7 +55,10 @@ export async function createVercelSandbox(): Promise<SandboxLike> {
         ? `cd ${shellEscape(cwd)} && ${[command, ...args].map(shellEscape).join(" ")}`
         : [command, ...args].map(shellEscape).join(" ");
       const result = await sandbox.runCommand("sh", ["-lc", script]);
-      const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+      const [stdout, stderr] = await Promise.all([
+        result.stdout(),
+        result.stderr(),
+      ]);
       return {
         stdout,
         stderr,
@@ -60,4 +69,3 @@ export async function createVercelSandbox(): Promise<SandboxLike> {
     stop: sandbox.stop.bind(sandbox),
   };
 }
-

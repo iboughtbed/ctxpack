@@ -39,7 +39,8 @@ export function filterBySearchPaths(
     const normalizedFilepath = normalizeSearchPath(filepath);
     return normalizedSearchPaths.some(
       (prefix) =>
-        normalizedFilepath === prefix || normalizedFilepath.startsWith(`${prefix}/`),
+        normalizedFilepath === prefix ||
+        normalizedFilepath.startsWith(`${prefix}/`),
     );
   });
 }
@@ -102,4 +103,3 @@ export function parseRipgrepJson(stdout: string): SandboxGrepMatch[] {
   }
   return matches;
 }
-

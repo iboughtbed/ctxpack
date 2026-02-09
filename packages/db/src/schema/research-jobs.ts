@@ -1,11 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export type ResearchJobOptions = {
   mode?: "hybrid" | "text" | "vector";

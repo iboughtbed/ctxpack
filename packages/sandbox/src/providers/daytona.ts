@@ -1,10 +1,10 @@
+import type { SandboxLike } from "../types";
 import {
   DAYTONA_SANDBOX_TIMEOUT_SECONDS,
   parseBoolean,
   parseNumber,
 } from "../config";
 import { shellEscape, toErrorMessage } from "../internal/utils";
-import type { SandboxLike } from "../types";
 
 type DaytonaProcessResponse = {
   exitCode?: number | null;
@@ -44,9 +44,7 @@ type DaytonaModuleLike = {
   Daytona?: DaytonaCtor;
 };
 
-function toBuffer(
-  value: Buffer | Uint8Array | ArrayBuffer | string,
-): Buffer {
+function toBuffer(value: Buffer | Uint8Array | ArrayBuffer | string): Buffer {
   if (Buffer.isBuffer(value)) {
     return value;
   }
@@ -112,7 +110,10 @@ function buildCreateParams(): Record<string, unknown> {
   }
 
   if (process.env.DAYTONA_SANDBOX_EPHEMERAL) {
-    params.ephemeral = parseBoolean(process.env.DAYTONA_SANDBOX_EPHEMERAL, true);
+    params.ephemeral = parseBoolean(
+      process.env.DAYTONA_SANDBOX_EPHEMERAL,
+      true,
+    );
   }
 
   const autoStopInterval = maybeParseNumber(
@@ -169,7 +170,8 @@ export async function createDaytonaSandbox(): Promise<SandboxLike> {
       const stdout = String(response.stdout ?? response.result ?? "");
       const stderr = String(response.stderr ?? "");
       const exitCode =
-        typeof response.exitCode === "number" && Number.isFinite(response.exitCode)
+        typeof response.exitCode === "number" &&
+        Number.isFinite(response.exitCode)
           ? response.exitCode
           : 0;
 
@@ -205,4 +207,3 @@ export async function createDaytonaSandbox(): Promise<SandboxLike> {
     },
   };
 }
-

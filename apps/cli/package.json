@@ -45,8 +45,8 @@
     "prepublishOnly": "bun run scripts/verify-dist.ts"
   },
   "devDependencies": {
-    "@repo/prettier-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@ctxpack/prettier-config": "workspace:*",
+    "@ctxpack/typescript-config": "workspace:*",
     "@types/bun": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
@@ -56,9 +56,9 @@
     "@babel/preset-typescript": "^7.28.5",
     "@opentui/core": "^0.1.77",
     "@opentui/solid": "^0.1.77",
-    "@repo/server": "workspace:*",
+    "@ctxpack/server": "workspace:*",
     "babel-preset-solid": "1.9.9",
     "solid-js": "1.9.9"
   },
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }

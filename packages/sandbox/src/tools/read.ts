@@ -1,7 +1,9 @@
 import type { SandboxReadParams } from "../types";
 import { SANDBOX_REPO_PATH, withGitSandbox } from "./shared";
 
-export async function readFileInSandbox(params: SandboxReadParams): Promise<string> {
+export async function readFileInSandbox(
+  params: SandboxReadParams,
+): Promise<string> {
   const { resource, filepath, startLine, endLine } = params;
   if (!resource.url) {
     throw new Error("Resource URL is required for sandbox file read");
@@ -27,4 +29,3 @@ export async function readFileInSandbox(params: SandboxReadParams): Promise<stri
     return lines.slice(start, end).join("\n");
   });
 }
-

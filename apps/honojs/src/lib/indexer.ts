@@ -5,14 +5,14 @@ import { embedMany } from "ai";
 import { chunkBatch } from "code-chunk";
 import { and, asc, eq } from "drizzle-orm";
 
-import type { IndexJobWarning } from "@repo/db/schema";
-import type { SandboxIndexWarning } from "@repo/sandbox";
-import { db } from "@repo/db";
-import { chunks, indexJobs, resources } from "@repo/db/schema";
+import type { IndexJobWarning } from "@ctxpack/db/schema";
+import type { SandboxIndexWarning } from "@ctxpack/sandbox";
+import { db } from "@ctxpack/db";
+import { chunks, indexJobs, resources } from "@ctxpack/db/schema";
 import {
   collectGitFileInputsInSandbox,
   shouldUseSandboxForGitIndexing,
-} from "@repo/sandbox";
+} from "@ctxpack/sandbox";
 
 import type { ModelConfig, ProviderKeys } from "../context";
 import {
@@ -360,7 +360,14 @@ async function embedAndInsertChunks(params: {
   providerKeys?: ProviderKeys;
   modelConfig?: ModelConfig;
 }): Promise<number> {
-  const { resourceId, jobId, chunksToInsert, warnings, providerKeys, modelConfig } = params;
+  const {
+    resourceId,
+    jobId,
+    chunksToInsert,
+    warnings,
+    providerKeys,
+    modelConfig,
+  } = params;
   const totalBatches = Math.ceil(chunksToInsert.length / EMBEDDING_BATCH_SIZE);
   let inserted = 0;
   let clearedExistingChunks = false;

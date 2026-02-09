@@ -1,8 +1,8 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { isRemoteExecutionMode } from "@repo/sandbox";
+import { isRemoteExecutionMode } from "@ctxpack/sandbox";
 
 import type { Context } from "../context";
 import {
@@ -13,14 +13,14 @@ import {
 } from "../lib/resources";
 import { ErrorSchema } from "./schemas/resources";
 import {
-  ToolGrepRequestSchema,
-  ToolGrepResponseSchema,
-  ToolReadRequestSchema,
-  ToolReadResponseSchema,
-  ToolListRequestSchema,
-  ToolListResponseSchema,
   ToolGlobRequestSchema,
   ToolGlobResponseSchema,
+  ToolGrepRequestSchema,
+  ToolGrepResponseSchema,
+  ToolListRequestSchema,
+  ToolListResponseSchema,
+  ToolReadRequestSchema,
+  ToolReadResponseSchema,
 } from "./schemas/tools";
 
 const toolsRouter = new OpenAPIHono<Context>();
@@ -41,7 +41,9 @@ async function loadResource(userId: string | null, resourceId: string) {
   return resources[0]!;
 }
 
-function getResourceScopedPaths(resource: { searchPaths: string[] | null }): string[] {
+function getResourceScopedPaths(resource: {
+  searchPaths: string[] | null;
+}): string[] {
   return normalizeScopedPaths(resource.searchPaths ?? null);
 }
 
@@ -241,7 +243,9 @@ toolsRouter.openapi(readRoute, async (c) => {
   const scopedPaths = getResourceScopedPaths(resource);
   const directPath = join(rootPath, input.filepath);
   const fallbackScopedPath =
-    scopedPaths.length === 1 ? join(rootPath, scopedPaths[0]!, input.filepath) : null;
+    scopedPaths.length === 1
+      ? join(rootPath, scopedPaths[0]!, input.filepath)
+      : null;
   let fullPath = directPath;
   let content: string;
   try {
@@ -268,7 +272,11 @@ toolsRouter.openapi(readRoute, async (c) => {
   }
 
   return c.json(
-    { filepath: normalizePath(relative(rootPath, fullPath)), content, totalLines },
+    {
+      filepath: normalizePath(relative(rootPath, fullPath)),
+      content,
+      totalLines,
+    },
     200,
   );
 });
@@ -330,10 +338,7 @@ toolsRouter.openapi(listRoute, async (c) => {
 
   // Check that targetDir exists
   if (!targetDir || !(await pathExists(targetDir))) {
-    return c.json(
-      { message: `Path not found: ${input.path ?? "/"}` },
-      404,
-    );
+    return c.json({ message: `Path not found: ${input.path ?? "/"}` }, 404);
   }
 
   // Try git ls-files first
@@ -378,7 +383,8 @@ toolsRouter.openapi(listRoute, async (c) => {
       if (collected.length >= MAX_FILES) return;
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        if (entry.name.startsWith(".") || entry.name === "node_modules")
+          continue;
         await collect(fullPath);
       } else {
         collected.push(normalizePath(relative(relativeBase, fullPath)));

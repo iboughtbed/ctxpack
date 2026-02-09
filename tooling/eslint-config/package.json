@@ -1,5 +1,5 @@
 {
-  "name": "@repo/eslint-config",
+  "name": "@ctxpack/eslint-config",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -9,7 +9,7 @@
     "./react-internal": "./react-internal.js"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ctxpack/typescript-config": "workspace:*",
     "@eslint/js": "^9.39.1",
     "@next/eslint-plugin-next": "^15.5.0",
     "eslint": "catalog:",

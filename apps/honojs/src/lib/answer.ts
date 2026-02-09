@@ -1,8 +1,9 @@
 import { streamText } from "ai";
 
 import type { ModelConfig, ProviderKeys } from "../context";
-import { hybridSearch, type SearchResult } from "./search";
+import type { SearchResult } from "./search";
 import { getChatModel, getChatModelInfo } from "./models";
+import { hybridSearch } from "./search";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

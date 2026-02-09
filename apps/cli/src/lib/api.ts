@@ -152,7 +152,17 @@ export type ToolGlobResponse = {
 /** Events emitted by /api/search/answer/stream */
 export type AnswerStreamEvent =
   | { type: "start"; model: string }
-  | { type: "sources"; sources: Array<{ resourceName: string; filepath: string; lineStart: number; lineEnd: number; matchType: string; score: number }> }
+  | {
+      type: "sources";
+      sources: Array<{
+        resourceName: string;
+        filepath: string;
+        lineStart: number;
+        lineEnd: number;
+        matchType: string;
+        score: number;
+      }>;
+    }
   | { type: "text-delta"; textDelta: string }
   | { type: "done"; model: string }
   | { type: "error"; message: string }
@@ -168,7 +178,12 @@ export type ExploreStreamEvent =
       toolName: string;
       input: Record<string, unknown>;
     }
-  | { type: "tool-result"; stepNumber: number; toolName: string; output: unknown }
+  | {
+      type: "tool-result";
+      stepNumber: number;
+      toolName: string;
+      output: unknown;
+    }
   | { type: "done"; model: string }
   | { type: "error"; message: string }
   | { type: "ping" };
@@ -444,8 +459,13 @@ export class CtxpackApiClient {
     });
   }
 
-  async *searchAnswerStream(payload: SearchRequest): AsyncGenerator<AnswerStreamEvent> {
-    const response = await this.fetchStream("/api/search/answer/stream", payload);
+  async *searchAnswerStream(
+    payload: SearchRequest,
+  ): AsyncGenerator<AnswerStreamEvent> {
+    const response = await this.fetchStream(
+      "/api/search/answer/stream",
+      payload,
+    );
     yield* streamNdjson<AnswerStreamEvent>(response);
   }
 
@@ -459,8 +479,13 @@ export class CtxpackApiClient {
     });
   }
 
-  async *searchExploreStream(payload: SearchRequest): AsyncGenerator<ExploreStreamEvent> {
-    const response = await this.fetchStream("/api/search/explore/stream", payload);
+  async *searchExploreStream(
+    payload: SearchRequest,
+  ): AsyncGenerator<ExploreStreamEvent> {
+    const response = await this.fetchStream(
+      "/api/search/explore/stream",
+      payload,
+    );
     yield* streamNdjson<ExploreStreamEvent>(response);
   }
 
@@ -474,12 +499,19 @@ export class CtxpackApiClient {
     });
   }
 
-  async *searchResearchStream(payload: SearchRequest): AsyncGenerator<ExploreStreamEvent> {
-    const response = await this.fetchStream("/api/search/research/stream", payload);
+  async *searchResearchStream(
+    payload: SearchRequest,
+  ): AsyncGenerator<ExploreStreamEvent> {
+    const response = await this.fetchStream(
+      "/api/search/research/stream",
+      payload,
+    );
     yield* streamNdjson<ExploreStreamEvent>(response);
   }
 
-  createResearchJob(payload: SearchRequest): Promise<{ jobId: string; status: string }> {
+  createResearchJob(
+    payload: SearchRequest,
+  ): Promise<{ jobId: string; status: string }> {
     return this.request<{ jobId: string; status: string }>({
       path: "/api/search/research/jobs",
       method: "POST",

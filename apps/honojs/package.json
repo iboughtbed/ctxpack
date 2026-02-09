@@ -1,5 +1,5 @@
 {
-  "name": "@repo/server",
+  "name": "@ctxpack/server",
   "version": "0.1.0",
   "type": "module",
   "module": "src/index.ts",
@@ -15,9 +15,9 @@
     "@ai-sdk/google": "^3.0.22",
     "@ai-sdk/openai": "^3.0.25",
     "@hono/zod-openapi": "^1.2.1",
-    "@repo/auth": "workspace:*",
-    "@repo/db": "workspace:*",
-    "@repo/sandbox": "workspace:*",
+    "@ctxpack/auth": "workspace:*",
+    "@ctxpack/db": "workspace:*",
+    "@ctxpack/sandbox": "workspace:*",
     "@tmcp/adapter-zod": "^0.1.7",
     "@tmcp/transport-http": "^0.8.4",
     "@tmcp/transport-stdio": "^0.4.1",
@@ -32,10 +32,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@repo/prettier-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@ctxpack/prettier-config": "workspace:*",
+    "@ctxpack/typescript-config": "workspace:*",
     "@types/bun": "latest",
     "prettier": "catalog:"
   },
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }

@@ -1,8 +1,10 @@
-import { filterBySearchPaths } from "../internal/utils";
 import type { SandboxListParams } from "../types";
+import { filterBySearchPaths } from "../internal/utils";
 import { listTrackedFiles, withGitSandbox } from "./shared";
 
-export async function listFilesInSandbox(params: SandboxListParams): Promise<string[]> {
+export async function listFilesInSandbox(
+  params: SandboxListParams,
+): Promise<string[]> {
   const { resource, paths } = params;
   if (!resource.url) {
     throw new Error("Resource URL is required for sandbox file listing");
@@ -13,4 +15,3 @@ export async function listFilesInSandbox(params: SandboxListParams): Promise<str
     return filterBySearchPaths(trackedFiles, paths ?? resource.searchPaths);
   });
 }
-

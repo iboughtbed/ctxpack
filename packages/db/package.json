@@ -1,5 +1,5 @@
 {
-  "name": "@repo/db",
+  "name": "@ctxpack/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,9 +22,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/prettier-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@ctxpack/eslint-config": "workspace:*",
+    "@ctxpack/prettier-config": "workspace:*",
+    "@ctxpack/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "dotenv-cli": "catalog:",
     "drizzle-kit": "^0.31.8",
@@ -32,5 +32,5 @@
     "prettier": "catalog:",
     "typescript": "catalog:"
   },
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }

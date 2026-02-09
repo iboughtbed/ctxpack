@@ -22,7 +22,9 @@ export const DAYTONA_SANDBOX_TIMEOUT_SECONDS = parseNumber(
 );
 
 export function getSandboxProvider(): SandboxProvider {
-  const provider = (process.env.CTXPACK_SANDBOX_PROVIDER ?? "vercel").toLowerCase();
+  const provider = (
+    process.env.CTXPACK_SANDBOX_PROVIDER ?? "vercel"
+  ).toLowerCase();
   return provider === "daytona" ? "daytona" : "vercel";
 }
 

@@ -1,1 +1,1 @@
-export * from "@repo/sandbox";
+export * from "@ctxpack/sandbox";

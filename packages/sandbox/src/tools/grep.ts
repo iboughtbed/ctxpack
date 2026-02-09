@@ -1,9 +1,6 @@
-import {
-  normalizeScopedPaths,
-  parseRipgrepJson,
-} from "../internal/utils";
 import type { SandboxGrepMatch, SandboxGrepParams } from "../types";
-import { SANDBOX_REPO_PATH, runCommand, withGitSandbox } from "./shared";
+import { normalizeScopedPaths, parseRipgrepJson } from "../internal/utils";
+import { runCommand, SANDBOX_REPO_PATH, withGitSandbox } from "./shared";
 
 export async function grepInSandbox(
   params: SandboxGrepParams,
@@ -26,4 +23,3 @@ export async function grepInSandbox(
     return parseRipgrepJson(output.stdout);
   });
 }
-

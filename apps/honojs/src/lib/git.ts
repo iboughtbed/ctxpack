@@ -56,10 +56,7 @@ export async function runBunCommand(
   throw new Error(`${argv.join(" ")} failed: ${output}`);
 }
 
-export async function runGit(
-  args: string[],
-  cwd?: string,
-): Promise<string> {
+export async function runGit(args: string[], cwd?: string): Promise<string> {
   return runBunCommand(["git", ...args], cwd);
 }
 
@@ -101,7 +98,15 @@ export async function prepareGitRepository(params: {
   }
 
   if (commit) {
-    await runGit(["-C", repositoryPath, "fetch", "--depth", "1", "origin", commit]);
+    await runGit([
+      "-C",
+      repositoryPath,
+      "fetch",
+      "--depth",
+      "1",
+      "origin",
+      commit,
+    ]);
     await runGit(["-C", repositoryPath, "checkout", "--force", commit]);
     return repositoryPath;
   }

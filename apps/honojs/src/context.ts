@@ -1,4 +1,4 @@
-import type { auth } from "@repo/auth";
+import type { auth } from "@ctxpack/auth";
 
 export type ApiKeyContext = {
   id: string;

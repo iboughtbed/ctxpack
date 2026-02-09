@@ -14,10 +14,13 @@ export const ToolGrepRequestSchema = z
       description: "Search pattern (regex or fixed string)",
       example: "export function",
     }),
-    paths: z.array(z.string()).optional().openapi({
-      description: "Optional subdirectory paths to scope the search",
-      example: ["src"],
-    }),
+    paths: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        description: "Optional subdirectory paths to scope the search",
+        example: ["src"],
+      }),
     caseSensitive: z.boolean().optional().openapi({
       description: "Case-sensitive search (default false)",
       example: false,
@@ -74,7 +77,10 @@ export const ToolReadResponseSchema = z
   .object({
     filepath: z.string().openapi({ description: "File path" }),
     content: z.string().openapi({ description: "File content" }),
-    totalLines: z.number().int().openapi({ description: "Total lines in file" }),
+    totalLines: z
+      .number()
+      .int()
+      .openapi({ description: "Total lines in file" }),
   })
   .openapi({ description: "Read tool response" });
 

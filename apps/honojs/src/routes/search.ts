@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { isRemoteExecutionMode } from "@repo/sandbox";
+import { isRemoteExecutionMode } from "@ctxpack/sandbox";
 
 import type { Context } from "../context";
 import { runAgentAsk, runAgentAskStream } from "../lib/agent";

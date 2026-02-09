@@ -1,9 +1,9 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 
-import { db } from "@repo/db";
-import { indexJobs, resources } from "@repo/db/schema";
-import { isRemoteExecutionMode } from "@repo/sandbox";
+import { db } from "@ctxpack/db";
+import { indexJobs, resources } from "@ctxpack/db/schema";
+import { isRemoteExecutionMode } from "@ctxpack/sandbox";
 
 import type { Context } from "../context";
 import { ensureResourceJobQueue } from "../lib/indexer";
@@ -11,8 +11,8 @@ import {
   ErrorSchema,
   IndexTriggerResponseSchema,
   ResourceCreateSchema,
-  ResourceListSchema,
   ResourceListQuerySchema,
+  ResourceListSchema,
   ResourceParamsSchema,
   ResourceSchema,
 } from "./schemas/resources";
@@ -63,7 +63,10 @@ function scopeFilter(
   projectKey: string | undefined,
 ) {
   if (scope === "project") {
-    return and(eq(resources.scope, "project"), eq(resources.projectKey, projectKey ?? ""));
+    return and(
+      eq(resources.scope, "project"),
+      eq(resources.projectKey, projectKey ?? ""),
+    );
   }
   if (scope === "global") {
     return eq(resources.scope, "global");
@@ -164,7 +167,8 @@ resourcesRouter.openapi(createResourceRoute, async (c) => {
   }
 
   const input = c.req.valid("json");
-  const normalizedProjectKey = input.scope === "project" ? input.projectKey ?? "" : "";
+  const normalizedProjectKey =
+    input.scope === "project" ? (input.projectKey ?? "") : "";
   const existing = await db
     .select({ id: resources.id })
     .from(resources)

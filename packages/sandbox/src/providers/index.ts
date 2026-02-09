@@ -1,5 +1,5 @@
-import { getSandboxProvider } from "../config";
 import type { SandboxLike } from "../types";
+import { getSandboxProvider } from "../config";
 import { createDaytonaSandbox } from "./daytona";
 import { createVercelSandbox } from "./vercel";
 
@@ -10,4 +10,3 @@ export async function createSandbox(): Promise<SandboxLike> {
   }
   return createVercelSandbox();
 }
-

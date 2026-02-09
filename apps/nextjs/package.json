@@ -14,7 +14,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@repo/prettier-config": "workspace:*",
+    "@ctxpack/prettier-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "catalog:",
     "@types/react": "^19",
@@ -33,5 +33,5 @@
     "sharp",
     "unrs-resolver"
   ],
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }

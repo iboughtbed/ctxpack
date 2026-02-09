@@ -15,10 +15,12 @@ export const JobWarningSchema = z
       description: "File path associated with the warning",
       example: "src/index.ts",
     }),
-    stage: z.enum(["scan", "read", "chunk", "embed", "sync", "remote-check"]).openapi({
-      description: "Indexing stage that produced this warning",
-      example: "read",
-    }),
+    stage: z
+      .enum(["scan", "read", "chunk", "embed", "sync", "remote-check"])
+      .openapi({
+        description: "Indexing stage that produced this warning",
+        example: "read",
+      }),
     message: z.string().openapi({
       description: "Warning details",
       example: "Skipped binary file",

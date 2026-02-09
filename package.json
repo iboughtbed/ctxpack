@@ -12,10 +12,10 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "db:push": "dotenv -- bun --filter @repo/db push",
-    "db:generate": "dotenv -- bun --filter @repo/db generate",
-    "db:migrate": "dotenv -- bun --filter @repo/db migrate",
-    "db:studio": "dotenv -- bun --filter @repo/db studio",
+    "db:push": "dotenv -- bun --filter @ctxpack/db push",
+    "db:generate": "dotenv -- bun --filter @ctxpack/db generate",
+    "db:migrate": "dotenv -- bun --filter @ctxpack/db migrate",
+    "db:studio": "dotenv -- bun --filter @ctxpack/db studio",
     "server:dev": "dotenv -- turbo run dev --filter=honojs",
     "web:dev": "dotenv -- turbo run dev --filter=nextjs",
     "web:build": "dotenv -- turbo run build --filter=nextjs",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "catalog:",
-    "@repo/prettier-config": "workspace:*",
+    "@ctxpack/prettier-config": "workspace:*",
     "dotenv-cli": "catalog:",
     "prettier": "catalog:",
     "prettier-plugin-tailwindcss": "catalog:",
@@ -56,5 +56,5 @@
       "tooling/*"
     ]
   },
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }

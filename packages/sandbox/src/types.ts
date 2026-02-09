@@ -34,7 +34,10 @@ export type SandboxLike = {
     args?: string[],
     cwd?: string,
   ) => Promise<SandboxCommandResult>;
-  readFileToBuffer: (file: { path: string; cwd?: string }) => Promise<Buffer | null>;
+  readFileToBuffer: (file: {
+    path: string;
+    cwd?: string;
+  }) => Promise<Buffer | null>;
   stop: () => Promise<void>;
 };
 
@@ -67,4 +70,3 @@ export type SandboxListParams = {
   resource: GitSandboxResource;
   paths?: string[];
 };
-

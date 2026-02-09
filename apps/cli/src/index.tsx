@@ -9,14 +9,15 @@ import type {
   AgentStep,
   AnswerStreamEvent,
   ApiSearchResult,
-  ModelConfig,
   ExploreStreamEvent,
+  ModelConfig,
+  ProviderKeys,
   ResearchJob,
   SearchAnswerResponse,
 } from "./lib/api";
 import type { ParsedArgv } from "./lib/args";
 import type { AuthFile, OAuthCredential } from "./lib/openai-auth";
-import { CtxpackApiClient, type ProviderKeys } from "./lib/api";
+import { CtxpackApiClient } from "./lib/api";
 import {
   getOptionArray,
   getOptionBoolean,
@@ -116,7 +117,11 @@ function resolveCliVersion(): string {
 
   try {
     const currentFile = fileURLToPath(import.meta.url);
-    const packageJsonPath = resolvePath(dirname(currentFile), "..", "package.json");
+    const packageJsonPath = resolvePath(
+      dirname(currentFile),
+      "..",
+      "package.json",
+    );
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
       version?: string;
     };
@@ -345,7 +350,9 @@ async function resolveProviderKeys(): Promise<ProviderKeys> {
   return keys;
 }
 
-function resolveModelConfig(projectConfig: Awaited<ReturnType<typeof readProjectConfig>>): ModelConfig {
+function resolveModelConfig(
+  projectConfig: Awaited<ReturnType<typeof readProjectConfig>>,
+): ModelConfig {
   const baseProvider = (projectConfig?.provider?.id ?? "openai").toLowerCase();
   const embeddingModel =
     projectConfig?.models?.embedding ??
@@ -379,7 +386,9 @@ async function resolveProjectKey(cwd = process.cwd()): Promise<string> {
   }
 }
 
-async function resolveResourceScope(parsed: ParsedArgv): Promise<ResourceScopeSelection> {
+async function resolveResourceScope(
+  parsed: ParsedArgv,
+): Promise<ResourceScopeSelection> {
   if (getOptionBoolean(parsed.options, ["global", "g"])) {
     return { scope: "global" };
   }
@@ -434,9 +443,15 @@ async function handleSetup(parsed: ParsedArgv): Promise<void> {
     const config = createDefaultProjectConfig();
     await writeProjectConfig(config, projectConfigPath);
     console.log(`Reinitialized project config: ${projectConfigPath}`);
-    console.log(`Storage root: ${config.storage?.root ?? getCtxpackHomePath()}`);
-    console.log(`Repository cache: ${config.storage?.repos ?? getCtxpackReposPath()}`);
-    console.log("Next: run `ctxpack connect`, then `ctxpack serve`, then `ctxpack add ...`.");
+    console.log(
+      `Storage root: ${config.storage?.root ?? getCtxpackHomePath()}`,
+    );
+    console.log(
+      `Repository cache: ${config.storage?.repos ?? getCtxpackReposPath()}`,
+    );
+    console.log(
+      "Next: run `ctxpack connect`, then `ctxpack serve`, then `ctxpack add ...`.",
+    );
     return;
   }
 
@@ -462,7 +477,9 @@ async function handleStatus(): Promise<void> {
     return;
   }
 
-  console.log(`Project is setup. Using existing configuration: ${projectConfigPath}`);
+  console.log(
+    `Project is setup. Using existing configuration: ${projectConfigPath}`,
+  );
   console.log("You can now run:");
   console.log("  ctxpack serve");
   console.log("  ctxpack add ...");
@@ -540,11 +557,10 @@ function promptChoice(
         const lines = [
           "",
           message,
-          ...choices.map(
-            (choice, index) =>
-              index === selectedIndex
-                ? `${cyan}> ${choice.label}${reset}`
-                : `  ${choice.label}`,
+          ...choices.map((choice, index) =>
+            index === selectedIndex
+              ? `${cyan}> ${choice.label}${reset}`
+              : `  ${choice.label}`,
           ),
           "",
           "Use Up/Down arrows to navigate, Enter to select.",
@@ -674,7 +690,12 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
   const positionalProvider = parsed.positionals[0]?.toLowerCase();
   let effectiveProvider = provider ?? positionalProvider;
   const hasExplicitArgs = Boolean(
-    provider || positionalProvider || model || embeddingModel || chatModel || apiKeyEnv,
+    provider ||
+    positionalProvider ||
+    model ||
+    embeddingModel ||
+    chatModel ||
+    apiKeyEnv,
   );
 
   if (
@@ -845,8 +866,7 @@ async function handleDisconnect(parsed: ParsedArgv): Promise<void> {
   }
 
   const explicitProvider =
-    getOptionString(parsed.options, ["provider", "p"]) ??
-    parsed.positionals[0];
+    getOptionString(parsed.options, ["provider", "p"]) ?? parsed.positionals[0];
   let providerId = explicitProvider?.trim().toLowerCase();
 
   if (!providerId) {
@@ -856,16 +876,13 @@ async function handleDisconnect(parsed: ParsedArgv): Promise<void> {
       );
     }
 
-    const selected = await promptChoice(
-      "Select provider to disconnect:",
-      [
-        ...connectedProviders.map((value) => ({
-          label: value,
-          value,
-        })),
-        { label: "Cancel", value: "cancel" },
-      ],
-    );
+    const selected = await promptChoice("Select provider to disconnect:", [
+      ...connectedProviders.map((value) => ({
+        label: value,
+        value,
+      })),
+      { label: "Cancel", value: "cancel" },
+    ]);
     if (selected === "cancel") {
       return;
     }
@@ -958,7 +975,9 @@ async function handleShowConfig(): Promise<void> {
   for (const providerId of providerIds) {
     const credential = auth[providerId];
     if (!credential) continue;
-    console.log(`  - ${providerId} (${credential.type === "oauth" ? "oauth" : "api key"})`);
+    console.log(
+      `  - ${providerId} (${credential.type === "oauth" ? "oauth" : "api key"})`,
+    );
   }
 }
 
@@ -980,7 +999,9 @@ async function handleResources(parsed: ParsedArgv): Promise<void> {
 
   if (resources.length === 0) {
     const scopeLabel =
-      scope.scope === "global" ? "global scope" : `project scope (${scope.projectKey})`;
+      scope.scope === "global"
+        ? "global scope"
+        : `project scope (${scope.projectKey})`;
     console.log(`No resources found at ${endpoint} for ${scopeLabel}.`);
     return;
   }
@@ -990,7 +1011,9 @@ async function handleResources(parsed: ParsedArgv): Promise<void> {
   );
   for (const resource of resources) {
     const updateTag =
-      resource.type === "git" && resource.updateAvailable ? " | updates=available" : "";
+      resource.type === "git" && resource.updateAvailable
+        ? " | updates=available"
+        : "";
     console.log(
       `- ${resource.id} | content=${resource.contentStatus} | vector=${resource.vectorStatus} | ${resource.type} | chunks=${resource.chunkCount}${updateTag} | ${resource.name}`,
     );
@@ -1170,7 +1193,12 @@ async function resolveResourceRows(
 ): Promise<Awaited<ReturnType<typeof client.listResources>>> {
   if (names.length === 0) return [];
   const resources = allResources ?? (await getScopedResources(client, parsed));
-  const resolvedIds = await resolveResourceNames(client, names, parsed, resources);
+  const resolvedIds = await resolveResourceNames(
+    client,
+    names,
+    parsed,
+    resources,
+  );
   return resources.filter((resource) => resolvedIds.includes(resource.id));
 }
 
@@ -1214,7 +1242,9 @@ async function maybePrintUpdateReminder(
 ): Promise<void> {
   const resources = await client.listResources();
   const candidates = resources.filter((resource) =>
-    scopedResourceIds.length === 0 ? true : scopedResourceIds.includes(resource.id),
+    scopedResourceIds.length === 0
+      ? true
+      : scopedResourceIds.includes(resource.id),
   );
   const stale = candidates.filter(
     (resource) => resource.type === "git" && resource.updateAvailable,
@@ -1223,9 +1253,7 @@ async function maybePrintUpdateReminder(
     return;
   }
   const hint =
-    stale.length === 1
-      ? `ctxpack sync ${stale[0]!.id}`
-      : "ctxpack sync --all";
+    stale.length === 1 ? `ctxpack sync ${stale[0]!.id}` : "ctxpack sync --all";
   console.log(
     `\nUpdate available for ${stale.length} git resource(s). Run \`${hint}\` to pull latest changes.`,
   );
@@ -1257,13 +1285,21 @@ async function handleSearch(parsed: ParsedArgv): Promise<void> {
   }
 
   const { client } = await createApiContext(parsed);
-  const resolvedResourceIds = await resolveResourceNames(client, resourceNames, parsed);
+  const resolvedResourceIds = await resolveResourceNames(
+    client,
+    resourceNames,
+    parsed,
+  );
   const resourceIds =
     resolvedResourceIds.length > 0
       ? resolvedResourceIds
-      : (await getScopedResources(client, parsed)).map((resource) => resource.id);
+      : (await getScopedResources(client, parsed)).map(
+          (resource) => resource.id,
+        );
   if (resourceIds.length === 0) {
-    console.log("No resources found in the selected scope. Run `ctxpack resources`.");
+    console.log(
+      "No resources found in the selected scope. Run `ctxpack resources`.",
+    );
     return;
   }
 
@@ -1591,7 +1627,11 @@ async function pathExists(path: string): Promise<boolean> {
 
 function normalizeHonoEntryPath(pathValue: string): string {
   const trimmed = pathValue.trim();
-  if (trimmed.endsWith(".ts") || trimmed.endsWith(".tsx") || trimmed.endsWith(".js")) {
+  if (
+    trimmed.endsWith(".ts") ||
+    trimmed.endsWith(".tsx") ||
+    trimmed.endsWith(".js")
+  ) {
     return trimmed;
   }
   return join(trimmed, "src", "index.ts");
@@ -1641,10 +1681,10 @@ async function loadHonoServerFactory(): Promise<{
   source: string;
 }> {
   try {
-    const serverModule = (await import("@repo/server")) as HonoServerModule;
+    const serverModule = (await import("@ctxpack/server")) as HonoServerModule;
     return {
-      createServer: resolveHonoServerFactory(serverModule, "@repo/server"),
-      source: "@repo/server",
+      createServer: resolveHonoServerFactory(serverModule, "@ctxpack/server"),
+      source: "@ctxpack/server",
     };
   } catch {
     // Fallback to explicit/path-based loading.
@@ -1653,9 +1693,13 @@ async function loadHonoServerFactory(): Promise<{
   if (process.env.CTXPACK_HONO_PATH) {
     const explicitPath = normalizeHonoEntryPath(process.env.CTXPACK_HONO_PATH);
     if (!(await pathExists(explicitPath))) {
-      throw new Error(`Configured CTXPACK_HONO_PATH does not exist: ${explicitPath}`);
+      throw new Error(
+        `Configured CTXPACK_HONO_PATH does not exist: ${explicitPath}`,
+      );
     }
-    const moduleExports = (await import(pathToFileURL(explicitPath).href)) as HonoServerModule;
+    const moduleExports = (await import(
+      pathToFileURL(explicitPath).href
+    )) as HonoServerModule;
     return {
       createServer: resolveHonoServerFactory(moduleExports, explicitPath),
       source: explicitPath,
@@ -1664,8 +1708,17 @@ async function loadHonoServerFactory(): Promise<{
 
   try {
     const sourceDir = dirname(fileURLToPath(import.meta.url));
-    const bundledEntrypoint = resolvePath(sourceDir, "..", "..", "honojs", "src", "index.ts");
-    const bundledModule = (await import(pathToFileURL(bundledEntrypoint).href)) as HonoServerModule;
+    const bundledEntrypoint = resolvePath(
+      sourceDir,
+      "..",
+      "..",
+      "honojs",
+      "src",
+      "index.ts",
+    );
+    const bundledModule = (await import(
+      pathToFileURL(bundledEntrypoint).href
+    )) as HonoServerModule;
     return {
       createServer: resolveHonoServerFactory(
         bundledModule,
@@ -1678,7 +1731,9 @@ async function loadHonoServerFactory(): Promise<{
   }
 
   const entrypoint = await resolveHonoEntrypointPath();
-  const moduleExports = (await import(pathToFileURL(entrypoint).href)) as HonoServerModule;
+  const moduleExports = (await import(
+    pathToFileURL(entrypoint).href
+  )) as HonoServerModule;
   return {
     createServer: resolveHonoServerFactory(moduleExports, entrypoint),
     source: entrypoint,
@@ -1824,13 +1879,18 @@ function formatDockerStartupError(errorOutput: string): string {
   }
 
   if (
-    normalized.includes("permission denied while trying to connect to the docker daemon socket") ||
+    normalized.includes(
+      "permission denied while trying to connect to the docker daemon socket",
+    ) ||
     normalized.includes("cannot connect to the docker daemon")
   ) {
     return "Failed to start Postgres: Docker daemon is not available. Start Docker and retry.";
   }
 
-  if (normalized.includes("container name") && normalized.includes("already in use")) {
+  if (
+    normalized.includes("container name") &&
+    normalized.includes("already in use")
+  ) {
     return "Failed to start Postgres: container name ctxpack-postgres is already used by another container.";
   }
 
@@ -1898,7 +1958,11 @@ async function ensurePostgresRunning(composeDir: string | null): Promise<{
   );
 
   if (result.exitCode !== 0) {
-    const details = (result.stderr.trim() || result.stdout.trim() || "unknown error").trim();
+    const details = (
+      result.stderr.trim() ||
+      result.stdout.trim() ||
+      "unknown error"
+    ).trim();
     throw new Error(formatDockerStartupError(details));
   }
 
@@ -1925,8 +1989,9 @@ async function stopPostgresContainer(containerName: string): Promise<void> {
 function isDockerSocketPermissionError(error: unknown): boolean {
   const message = toErrorMessage(error).toLowerCase();
   return (
-    message.includes("permission denied while trying to connect to the docker daemon socket") ||
-    message.includes("cannot connect to the docker daemon")
+    message.includes(
+      "permission denied while trying to connect to the docker daemon socket",
+    ) || message.includes("cannot connect to the docker daemon")
   );
 }
 
@@ -2170,7 +2235,8 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
       CTXPACK_EMBEDDING_MODEL: embeddingModel,
       CTXPACK_CHAT_PROVIDER: chatProvider,
       CTXPACK_CHAT_MODEL: effectiveChatModel,
-      CTXPACK_OPENAI_AUTH_MODE: openaiAuthMode === "oauth" ? "oauth" : undefined,
+      CTXPACK_OPENAI_AUTH_MODE:
+        openaiAuthMode === "oauth" ? "oauth" : undefined,
       CTXPACK_OPENAI_OAUTH_ACCESS_TOKEN:
         openaiAuthMode === "oauth" && openaiOAuthCredential
           ? openaiOAuthCredential.accessToken
@@ -2182,7 +2248,12 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
     };
 
     const auth = await readAuthFile();
-    resolveProviderApiKey(embeddingProvider, providerApiKeyEnv, auth, serverEnv);
+    resolveProviderApiKey(
+      embeddingProvider,
+      providerApiKeyEnv,
+      auth,
+      serverEnv,
+    );
     resolveProviderApiKey(chatProvider, providerApiKeyEnv, auth, serverEnv);
 
     if (
@@ -2219,7 +2290,8 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
       port: portNumber,
       idleTimeout: 255,
     });
-    const url = server.url ?? `http://localhost:${String(server.port ?? portNumber)}`;
+    const url =
+      server.url ?? `http://localhost:${String(server.port ?? portNumber)}`;
     console.log(`Server running at ${url}`);
     console.log("Press Ctrl+C to stop");
 
@@ -2247,7 +2319,11 @@ async function resolveResourceIdForTool(
   if (resourceNames.length === 0) {
     throw new Error("--resource <name-or-id> is required for tool commands.");
   }
-  const resolved = await resolveResourceNames(client, [resourceNames[0]!], parsed);
+  const resolved = await resolveResourceNames(
+    client,
+    [resourceNames[0]!],
+    parsed,
+  );
   return resolved[0]!;
 }
 

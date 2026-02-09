@@ -246,11 +246,14 @@ export const ResourceListQuerySchema = z
       example: "project",
       param: { name: "scope", in: "query" },
     }),
-    projectKey: z.string().optional().openapi({
-      description: "Project identifier when scope=project",
-      example: "/home/user/my-project",
-      param: { name: "projectKey", in: "query" },
-    }),
+    projectKey: z
+      .string()
+      .optional()
+      .openapi({
+        description: "Project identifier when scope=project",
+        example: "/home/user/my-project",
+        param: { name: "projectKey", in: "query" },
+      }),
   })
   .superRefine((value, ctx) => {
     if (value.scope === "project" && !value.projectKey) {

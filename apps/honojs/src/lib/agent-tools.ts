@@ -1,17 +1,17 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tool } from "ai";
 import { z } from "zod";
 
-import { hybridSearch } from "./search";
-import type { SearchResult } from "./search";
 import type { ModelConfig, ProviderKeys } from "../context";
+import type { SearchResource } from "./resources";
+import type { SearchResult } from "./search";
 import {
   normalizePath,
   normalizeScopedPaths,
   resolveResourceRootPath,
-  type SearchResource,
 } from "./resources";
+import { hybridSearch } from "./search";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -226,7 +226,10 @@ export function createAgentTools(ctx: AgentToolContext) {
             lines.length > SEARCH_PREVIEW_LINES ||
             r.text.length > SEARCH_PREVIEW_CHARS;
           const preview = isTruncated
-            ? lines.slice(0, SEARCH_PREVIEW_LINES).join("\n").slice(0, SEARCH_PREVIEW_CHARS) +
+            ? lines
+                .slice(0, SEARCH_PREVIEW_LINES)
+                .join("\n")
+                .slice(0, SEARCH_PREVIEW_CHARS) +
               `\n... (${lines.length} total lines, use read to see full content)`
             : r.text;
 
@@ -314,12 +317,8 @@ export function createAgentTools(ctx: AgentToolContext) {
 
         const [exitCode, stdout] = await Promise.all([
           proc.exited,
-          proc.stdout
-            ? new Response(proc.stdout).text()
-            : Promise.resolve(""),
-          proc.stderr
-            ? new Response(proc.stderr).text()
-            : Promise.resolve(""),
+          proc.stdout ? new Response(proc.stdout).text() : Promise.resolve(""),
+          proc.stderr ? new Response(proc.stderr).text() : Promise.resolve(""),
         ]);
 
         if (exitCode === 1) return [];
@@ -348,7 +347,9 @@ export function createAgentTools(ctx: AgentToolContext) {
           .string()
           .optional()
           .describe("Resource ID (optional if only one resource)"),
-        filepath: z.string().describe("File path relative to the resource root"),
+        filepath: z
+          .string()
+          .describe("File path relative to the resource root"),
         startLine: z
           .number()
           .int()
@@ -367,7 +368,11 @@ export function createAgentTools(ctx: AgentToolContext) {
         filepath,
         startLine,
         endLine,
-      }): Promise<{ filepath: string; content: string; totalLines: number }> => {
+      }): Promise<{
+        filepath: string;
+        content: string;
+        totalLines: number;
+      }> => {
         const resource = resourceId
           ? requireResource(ctx.resources, resourceId)
           : ctx.resources.length === 1
@@ -412,7 +417,8 @@ export function createAgentTools(ctx: AgentToolContext) {
           if (sliced.length > MAX_READ_LINES) {
             return {
               filepath: normalizePath(relative(rootPath, fullPath)),
-              content: sliced.slice(0, MAX_READ_LINES).join("\n") +
+              content:
+                sliced.slice(0, MAX_READ_LINES).join("\n") +
                 `\n... (truncated, showing ${MAX_READ_LINES} of ${sliced.length} requested lines)`,
               totalLines,
             };
@@ -427,7 +433,8 @@ export function createAgentTools(ctx: AgentToolContext) {
         if (allLines.length > MAX_READ_LINES) {
           return {
             filepath: normalizePath(relative(rootPath, fullPath)),
-            content: allLines.slice(0, MAX_READ_LINES).join("\n") +
+            content:
+              allLines.slice(0, MAX_READ_LINES).join("\n") +
               `\n... (truncated, showing ${MAX_READ_LINES} of ${totalLines} total lines)`,
             totalLines,
           };
@@ -458,10 +465,7 @@ export function createAgentTools(ctx: AgentToolContext) {
           .optional()
           .describe("Subdirectory path to list (default: root)"),
       }),
-      execute: async ({
-        resourceId,
-        path,
-      }): Promise<{ files: string[] }> => {
+      execute: async ({ resourceId, path }): Promise<{ files: string[] }> => {
         const resource = resourceId
           ? requireResource(ctx.resources, resourceId)
           : ctx.resources.length === 1
@@ -522,7 +526,12 @@ export function createAgentTools(ctx: AgentToolContext) {
         }
 
         const collected: string[] = [];
-        await collectFilesRecursive(targetDir, targetDir, MAX_FILE_LIST, collected);
+        await collectFilesRecursive(
+          targetDir,
+          targetDir,
+          MAX_FILE_LIST,
+          collected,
+        );
         return { files: collected };
       },
     }),

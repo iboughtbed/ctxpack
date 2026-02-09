@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 
-import { db } from "@repo/db";
-import { researchJobs } from "@repo/db/schema";
+import { db } from "@ctxpack/db";
+import { researchJobs } from "@ctxpack/db/schema";
 
-import { runResearch, type ResearchResult } from "./research";
-import { scheduleGitUpdateChecks } from "./update-checker";
 import type { ModelConfig, ProviderKeys } from "../context";
+import type { ResearchResult } from "./research";
+import { runResearch } from "./research";
+import { scheduleGitUpdateChecks } from "./update-checker";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

@@ -77,7 +77,9 @@ export async function ensureCtxpackHomeDirectories(): Promise<void> {
 }
 
 export function getConfigPath(): string {
-  return process.env.CTXPACK_CONFIG_PATH ?? join(getCtxpackHomePath(), "config.json");
+  return (
+    process.env.CTXPACK_CONFIG_PATH ?? join(getCtxpackHomePath(), "config.json")
+  );
 }
 
 export function getProjectConfigPath(cwd = process.cwd()): string {
@@ -107,7 +109,10 @@ function parseJsonc(raw: string): unknown {
     /^[\t ]*\/\/.*$/gm,
     "",
   );
-  const withoutTrailingCommas = withoutLineComments.replace(/,\s*([}\]])/g, "$1");
+  const withoutTrailingCommas = withoutLineComments.replace(
+    /,\s*([}\]])/g,
+    "$1",
+  );
   return JSON.parse(withoutTrailingCommas);
 }
 
@@ -214,17 +219,15 @@ export function resolveEndpoint(
     return projectConfig.server.endpoint;
   }
 
-  return (
-    config.remote?.endpoint ??
-    DEFAULT_ENDPOINT
-  );
+  return config.remote?.endpoint ?? DEFAULT_ENDPOINT;
 }
 
 export function resolveApiKey(
   config: CliConfig,
   override?: string,
 ): string | undefined {
-  const apiKey = override ?? process.env.CTXPACK_API_KEY ?? config.remote?.apiKey;
+  const apiKey =
+    override ?? process.env.CTXPACK_API_KEY ?? config.remote?.apiKey;
   if (!apiKey || apiKey.trim().length === 0) {
     return undefined;
   }

@@ -1,9 +1,9 @@
 import { createMiddleware } from "hono/factory";
 import { eq } from "drizzle-orm";
 
-import { auth, AUTH_API_KEY_HEADERS } from "@repo/auth";
-import { db } from "@repo/db";
-import { users } from "@repo/db/schema";
+import { auth, AUTH_API_KEY_HEADERS } from "@ctxpack/auth";
+import { db } from "@ctxpack/db";
+import { users } from "@ctxpack/db/schema";
 
 import type {
   ApiKeyContext,

@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { apiKey } from "better-auth/plugins";
 
-import { db } from "@repo/db";
+import { db } from "@ctxpack/db";
 
 export const AUTH_API_KEY_HEADERS = ["x-api-key"] as const;
 

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/prettier-config",
+  "name": "@ctxpack/prettier-config",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -17,9 +17,9 @@
     "prettier-plugin-tailwindcss": "catalog:"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ctxpack/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },
-  "prettier": "@repo/prettier-config"
+  "prettier": "@ctxpack/prettier-config"
 }
