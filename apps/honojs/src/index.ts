@@ -61,6 +61,6 @@ app.doc("/doc", {
 
 export default {
   fetch: app.fetch,
-  port: Number(process.env.PORT ?? 3000),
+  port: Number(process.env.PORT ?? 8787),
   idleTimeout: 255, // 255 seconds limit on Bun.serve
 };

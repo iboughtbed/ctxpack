@@ -1,6 +1,8 @@
 import { z } from "@hono/zod-openapi";
 
 export const ResourceTypeSchema = z.enum(["git", "local"]);
+export const ResourceScopeSchema = z.enum(["project", "global"]);
+export const ResourceListScopeSchema = z.enum(["project", "global", "all"]);
 
 export const ResourceStatusSchema = z.enum([
   "pending",
@@ -45,6 +47,14 @@ export const ResourceSchema = z
     name: z.string().openapi({
       description: "Resource name (unique per user)",
       example: "my-app",
+    }),
+    scope: ResourceScopeSchema.openapi({
+      description: "Resource scope",
+      example: "project",
+    }),
+    projectKey: z.string().nullable().openapi({
+      description: "Project identifier when scope is project",
+      example: "/home/user/my-project",
     }),
     type: ResourceTypeSchema.openapi({
       description: "Resource type",
@@ -160,6 +170,14 @@ export const ResourceCreateSchema = z
       description: "Resource name (unique per user)",
       example: "my-app",
     }),
+    scope: ResourceScopeSchema.default("project").openapi({
+      description: "Resource scope",
+      example: "project",
+    }),
+    projectKey: z.string().min(1).optional().openapi({
+      description: "Project identifier when scope is project",
+      example: "/home/user/my-project",
+    }),
     type: ResourceTypeSchema.openapi({
       description: "Resource type",
       example: "git",
@@ -208,9 +226,43 @@ export const ResourceCreateSchema = z
         path: ["path"],
       });
     }
+
+    if (value.scope === "project" && !value.projectKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "projectKey is required when scope is project",
+        path: ["projectKey"],
+      });
+    }
   })
   .openapi({
     description: "Payload to create a resource",
+  });
+
+export const ResourceListQuerySchema = z
+  .object({
+    scope: ResourceListScopeSchema.optional().openapi({
+      description: "Scope filter (defaults to all)",
+      example: "project",
+      param: { name: "scope", in: "query" },
+    }),
+    projectKey: z.string().optional().openapi({
+      description: "Project identifier when scope=project",
+      example: "/home/user/my-project",
+      param: { name: "projectKey", in: "query" },
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === "project" && !value.projectKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "projectKey is required when scope is project",
+        path: ["projectKey"],
+      });
+    }
+  })
+  .openapi({
+    description: "Query params for listing resources",
   });
 
 export const ErrorSchema = z

@@ -29,11 +29,14 @@ type ApiClientOptions = {
 };
 
 type SearchMode = "hybrid" | "text" | "vector";
+export type ResourceScope = "project" | "global";
 
 export type ApiResource = {
   id: string;
   userId: string | null;
   name: string;
+  scope: ResourceScope;
+  projectKey: string | null;
   type: "git" | "local";
   url: string | null;
   path: string | null;
@@ -348,14 +351,27 @@ export class CtxpackApiClient {
 
   /* ---- Resources ------------------------------------------------- */
 
-  listResources(): Promise<ApiResource[]> {
+  listResources(params?: {
+    scope?: ResourceScope | "all";
+    projectKey?: string;
+  }): Promise<ApiResource[]> {
+    const query = new URLSearchParams();
+    if (params?.scope) {
+      query.set("scope", params.scope);
+    }
+    if (params?.projectKey) {
+      query.set("projectKey", params.projectKey);
+    }
+    const search = query.toString();
     return this.request<ApiResource[]>({
-      path: "/api/resources",
+      path: search.length > 0 ? `/api/resources?${search}` : "/api/resources",
     });
   }
 
   createResource(payload: {
     name: string;
+    scope: ResourceScope;
+    projectKey?: string;
     type: "git" | "local";
     url?: string;
     path?: string;

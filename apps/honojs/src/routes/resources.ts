@@ -12,6 +12,7 @@ import {
   IndexTriggerResponseSchema,
   ResourceCreateSchema,
   ResourceListSchema,
+  ResourceListQuerySchema,
   ResourceParamsSchema,
   ResourceSchema,
 } from "./schemas/resources";
@@ -26,6 +27,8 @@ const toResource = (row: ResourceRow) => ({
   id: row.id,
   userId: row.userId ?? null,
   name: row.name,
+  scope: row.scope ?? "global",
+  projectKey: row.projectKey || null,
   type: row.type,
   url: row.url ?? null,
   path: row.path ?? null,
@@ -55,10 +58,26 @@ function ownerFilter(user: ContextUser) {
   return user ? eq(resources.userId, user.id) : isNull(resources.userId);
 }
 
+function scopeFilter(
+  scope: "project" | "global" | "all" | undefined,
+  projectKey: string | undefined,
+) {
+  if (scope === "project") {
+    return and(eq(resources.scope, "project"), eq(resources.projectKey, projectKey ?? ""));
+  }
+  if (scope === "global") {
+    return eq(resources.scope, "global");
+  }
+  return undefined;
+}
+
 const listResourcesRoute = createRoute({
   method: "get",
   path: "/api/resources",
   tags: ["Resources"],
+  request: {
+    query: ResourceListQuerySchema,
+  },
   responses: {
     200: {
       description: "List resources for the current user",
@@ -85,7 +104,13 @@ resourcesRouter.openapi(listResourcesRoute, async (c) => {
     return c.json({ message: "Unauthorized" }, 401);
   }
 
-  const rows = await db.select().from(resources).where(ownerFilter(user));
+  const { scope, projectKey } = c.req.valid("query");
+  const owner = ownerFilter(user);
+  const scoped = scopeFilter(scope, projectKey);
+  const rows = await db
+    .select()
+    .from(resources)
+    .where(scoped ? and(owner, scoped) : owner);
 
   return c.json(rows.map(toResource), 200);
 });
@@ -139,10 +164,18 @@ resourcesRouter.openapi(createResourceRoute, async (c) => {
   }
 
   const input = c.req.valid("json");
+  const normalizedProjectKey = input.scope === "project" ? input.projectKey ?? "" : "";
   const existing = await db
     .select({ id: resources.id })
     .from(resources)
-    .where(and(ownerFilter(user), eq(resources.name, input.name)))
+    .where(
+      and(
+        ownerFilter(user),
+        eq(resources.name, input.name),
+        eq(resources.scope, input.scope),
+        eq(resources.projectKey, normalizedProjectKey),
+      ),
+    )
     .limit(1);
 
   if (existing.length > 0) {
@@ -152,6 +185,8 @@ resourcesRouter.openapi(createResourceRoute, async (c) => {
   const values = {
     userId: user?.id ?? null,
     name: input.name,
+    scope: input.scope,
+    projectKey: normalizedProjectKey,
     type: input.type,
     url: input.url ?? null,
     path: input.path ?? null,

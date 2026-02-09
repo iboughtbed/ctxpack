@@ -18,6 +18,10 @@ export const resources = pgTable(
     userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
 
     name: text("name").notNull(),
+    scope: text("scope", { enum: ["project", "global"] })
+      .notNull()
+      .default("global"),
+    projectKey: text("project_key").notNull().default(""),
     type: text("type", { enum: ["git", "local"] }).notNull(),
     url: text("url"),
     path: text("path"),
@@ -52,6 +56,11 @@ export const resources = pgTable(
   },
   (t) => [
     index("resources_user_id_idx").on(t.userId),
-    uniqueIndex("resources_user_name_idx").on(t.userId, t.name),
+    uniqueIndex("resources_user_scope_project_name_idx").on(
+      t.userId,
+      t.scope,
+      t.projectKey,
+      t.name,
+    ),
   ],
 );

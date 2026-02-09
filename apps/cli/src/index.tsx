@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { emitKeypressEvents } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -157,61 +157,63 @@ function printHelp(): void {
     [
       "ctxpack CLI",
       "",
-      "Meta:",
-      "  ctxpack --version, -v                             Print CLI version",
+      "Status and setup:",
+      "  ctxpack                                            Show setup status and next steps",
+      "  ctxpack setup [--force]                            Initialize project config",
+      "  ctxpack help                                       Show this help",
+      "  ctxpack --version, -v                              Print CLI version",
       "",
-      "Setup:",
-      "  ctxpack                                            Create ./ctxpack.config.jsonc (if missing)",
-      "  ctxpack setup [--force]                            Initialize/refresh project config",
-      "",
-      "Core commands:",
-      "  ctxpack connect openai                             Connect OpenAI via OAuth (ChatGPT Plus/Pro)",
-      "  ctxpack connect                                    Select provider interactively",
+      "Connect LLM providers:",
+      "  ctxpack connect openai                             Connect OpenAI (OAuth flow)",
+      "  ctxpack connect                                    Interactive provider picker (TTY only)",
       "  ctxpack connect --provider <id> --model <id> [--api-key-env <ENV_NAME>]",
-      "  ctxpack disconnect",
-      "  ctxpack auth status                                Show stored auth credentials",
-      "  ctxpack auth logout [provider]                     Remove stored credentials",
-      "  ctxpack config",
+      "  ctxpack disconnect [provider] [--provider <id>]    Disconnect provider credentials",
+      "",
+      "Configuration:",
+      "  ctxpack config                                     Show project + global config and connected providers",
+      "",
+      "Server:",
       "  ctxpack server [--port <n>]                        Start local Hono server",
       "  ctxpack serve [--port <n>]                         Alias for server",
-      "  ctxpack list",
-      "  ctxpack add <url-or-path> [--name <name>] [--type git|local] [--branch <branch>] [--commit <sha>] [--paths <a,b>] [--notes <text>] [--index]",
-      "  ctxpack rm <resource-id>",
-      "  ctxpack sync <name-or-id> [...] [--all]",
-      "  ctxpack index <name-or-id>",
-      "  ctxpack updates [--all] [--resource <name-or-id>] Show resources with remote updates available",
-      "  ctxpack reindex <name-or-id> [...]                Deprecated alias for index",
-      "  ctxpack job <job-id>",
       "",
-      "  ctxpack search <query> [options]                  Search indexed codebases",
-      "    (default)                                       Quick AI answer from search results (~2-3s)",
-      "    --raw                                           Raw ranked chunks, no AI",
-      "    --explore                                       Agent-based exploration with tools (~10-30s)",
-      "    --research                                      Deep thorough research (50 steps, ~1-5min)",
-      "    --research --async                              Run research in background, returns job ID",
+      "Ask and search:",
+      "  ctxpack ask <query> [options]                      Alias for: ctxpack search <query> --explore",
+      "  ctxpack search <query> [options]                   Quick AI answer from indexed resources",
+      "    --raw                                            Raw ranked chunks, no AI",
+      "    --explore                                        Agent-based exploration with tools",
+      "    --research                                       Deep research",
+      "    --research --async                               Run deep research in background",
+      "  ctxpack research-status <job-id>                   Check async research job status",
       "",
       "  Common search options:",
-      "    --resource, -r <name-or-id>                     Scope to specific resource(s) (omit for all)",
-      "    --mode <hybrid|text|vector>                     Search strategy (default: hybrid)",
-      "    --stream                                        Stream response",
-      "    --verbose, -v                                   Show agent trace (explore/research)",
-      "    --top-k <n>                                     Max context chunks",
-      "    --alpha <0-1>                                   Hybrid weight",
+      "    --resource, -r <name-or-id>                      Scope to specific resources",
+      "    --mode <hybrid|text|vector>                      Search strategy (default: hybrid)",
+      "    --stream                                         Stream response",
+      "    --verbose, -v                                    Show agent trace",
+      "    --top-k <n>                                      Max context chunks",
+      "    --alpha <0-1>                                    Hybrid weight",
+      "    --global, -g                                     Use global resource scope",
       "",
-      "  ctxpack ask <query> [options]                     Alias for: search --explore",
-      "  ctxpack research-status <job-id>                  Check async research job status",
+      "Resources (default scope: current project):",
+      "  ctxpack resources [--global]                       List resources",
+      "  ctxpack add <url-or-path> [options] [--global]     Add resource",
+      "  ctxpack rm <resource-id> [--global]                Remove resource",
+      "  ctxpack sync <name-or-id> [...] [--all] [--global] Pull latest content (git pulls remote; local refreshes)",
+      "  ctxpack index <name-or-id> [...] [--all] [--sync] [--global]",
+      "                                                     Index embeddings (with --sync: sync git first)",
+      "  ctxpack job <job-id>                               Check index/sync job status",
       "",
       "Tool commands (direct resource access):",
       "  ctxpack grep <pattern> --resource <name-or-id> [--paths a,b] [--case-sensitive]",
       "  ctxpack read <filepath> --resource <name-or-id> [--start-line N] [--end-line N]",
-      "  ctxpack list --resource <name-or-id> [--path <subpath>]",
+      "  ctxpack ls --resource <name-or-id> [--path <subpath>]",
       "  ctxpack glob <pattern> --resource <name-or-id>",
       "",
       "Remote aliases:",
       "  ctxpack remote link --key <api-key> [--endpoint <url>]",
       "  ctxpack remote unlink",
       "  ctxpack remote add ...",
-      "  ctxpack remote list",
+      "  ctxpack remote resources",
       "  ctxpack remote ask ...",
       "  ctxpack remote rm <resource-id>",
       "",
@@ -351,6 +353,29 @@ function resolveModelConfig(projectConfig: Awaited<ReturnType<typeof readProject
   };
 }
 
+type ResourceScopeSelection = {
+  scope: "project" | "global";
+  projectKey?: string;
+};
+
+async function resolveProjectKey(cwd = process.cwd()): Promise<string> {
+  try {
+    return await realpath(cwd);
+  } catch {
+    return resolvePath(cwd);
+  }
+}
+
+async function resolveResourceScope(parsed: ParsedArgv): Promise<ResourceScopeSelection> {
+  if (getOptionBoolean(parsed.options, ["global", "g"])) {
+    return { scope: "global" };
+  }
+  return {
+    scope: "project",
+    projectKey: await resolveProjectKey(),
+  };
+}
+
 async function createApiContext(parsed: ParsedArgv): Promise<ApiContext> {
   const globalConfig = await readConfig();
   const projectConfig = await readProjectConfig();
@@ -390,32 +415,46 @@ async function handleSetup(parsed: ParsedArgv): Promise<void> {
 
   const projectConfigPath = getProjectConfigPath();
   const force = getOptionBoolean(parsed.options, ["force", "f"]);
-
-  const ensured = force
-    ? {
-        path: projectConfigPath,
-        config: createDefaultProjectConfig(),
-        created: true,
-      }
-    : await ensureProjectConfig(projectConfigPath);
+  const existing = await readProjectConfig(projectConfigPath);
 
   if (force) {
-    await writeProjectConfig(ensured.config, ensured.path);
+    const config = createDefaultProjectConfig();
+    await writeProjectConfig(config, projectConfigPath);
+    console.log(`Reinitialized project config: ${projectConfigPath}`);
+    console.log(`Storage root: ${config.storage?.root ?? getCtxpackHomePath()}`);
+    console.log(`Repository cache: ${config.storage?.repos ?? getCtxpackReposPath()}`);
+    console.log("Next: run `ctxpack connect`, then `ctxpack serve`, then `ctxpack add ...`.");
+    return;
   }
 
+  if (existing) {
+    console.log(`Project is already setup: ${projectConfigPath}`);
+    console.log("To reinitialize, run: `ctxpack setup --force`");
+    return;
+  }
+
+  const ensured = await ensureProjectConfig(projectConfigPath);
+  console.log(`Setup complete. Created project config: ${ensured.path}`);
   console.log(
-    `${ensured.created ? "Created" : "Using existing"} project config: ${ensured.path}`,
+    "Next: run `ctxpack connect`, then `ctxpack serve`, then `ctxpack add ...`.",
   );
-  console.log(
-    "Storage root: " + (ensured.config.storage?.root ?? getCtxpackHomePath()),
-  );
-  console.log(
-    "Repository cache: " +
-      (ensured.config.storage?.repos ?? getCtxpackReposPath()),
-  );
-  console.log(
-    "Next steps: edit provider/models in ctxpack.config.jsonc, run `ctxpack server`, then `ctxpack add ...`.",
-  );
+}
+
+async function handleStatus(): Promise<void> {
+  const projectConfigPath = getProjectConfigPath();
+  const projectConfig = await readProjectConfig(projectConfigPath);
+  if (!projectConfig) {
+    console.log("Project is not setup yet.");
+    console.log("Run `ctxpack setup`.");
+    return;
+  }
+
+  console.log(`Project is setup. Using existing configuration: ${projectConfigPath}`);
+  console.log("You can now run:");
+  console.log("  ctxpack serve");
+  console.log("  ctxpack add ...");
+  console.log("  ctxpack connect");
+  console.log("For more info, run `ctxpack help`.");
 }
 
 /* ------------------------------------------------------------------ */
@@ -459,12 +498,16 @@ function promptChoice(
 
       const render = () => {
         clearRendered();
+        const cyan = "\x1b[96m";
+        const reset = "\x1b[0m";
         const lines = [
           "",
           message,
           ...choices.map(
             (choice, index) =>
-              `${index === selectedIndex ? ">" : " "} ${choice.label}`,
+              index === selectedIndex
+                ? `${cyan}> ${choice.label}${reset}`
+                : `  ${choice.label}`,
           ),
           "",
           "Use Up/Down arrows to navigate, Enter to select.",
@@ -593,6 +636,9 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
   // Check if user did `ctxpack connect openai` (positional)
   const positionalProvider = parsed.positionals[0]?.toLowerCase();
   let effectiveProvider = provider ?? positionalProvider;
+  const hasExplicitArgs = Boolean(
+    provider || positionalProvider || model || embeddingModel || chatModel || apiKeyEnv,
+  );
 
   if (
     !effectiveProvider &&
@@ -601,6 +647,11 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
     !chatModel &&
     !apiKeyEnv
   ) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error(
+        "Interactive connect requires a TTY. Use explicit flags, e.g. `ctxpack connect --provider openai` or `ctxpack connect --provider anthropic --chat-model claude-sonnet-4-5`.",
+      );
+    }
     printSupportedConnectProviders();
     const selectedProvider = await promptChoice(
       "Select provider to connect:",
@@ -620,7 +671,9 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
     !chatModel &&
     !apiKeyEnv
   ) {
-    await handleConnectOpenAI(parsed);
+    await handleConnectOpenAI({
+      interactiveMethodChoice: !hasExplicitArgs,
+    });
     return;
   }
 
@@ -668,11 +721,15 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
   console.log(`API key env var: ${nextApiKeyEnv}`);
 }
 
-async function handleConnectOpenAI(_parsed: ParsedArgv): Promise<void> {
-  const method = await promptChoice("Select authentication method:", [
-    { label: "ChatGPT Plus/Pro (OAuth link)", value: "oauth-link" },
-    { label: "Manually enter API Key", value: "apikey" },
-  ]);
+async function handleConnectOpenAI(params: {
+  interactiveMethodChoice: boolean;
+}): Promise<void> {
+  const method = params.interactiveMethodChoice
+    ? await promptChoice("Select authentication method:", [
+        { label: "ChatGPT Plus/Pro (OAuth link)", value: "oauth-link" },
+        { label: "Manually enter API Key", value: "apikey" },
+      ])
+    : "oauth-link";
 
   if (method === "apikey") {
     const apiKey = await promptInput("Enter your OpenAI API key");
@@ -741,97 +798,57 @@ async function handleConnectOpenAI(_parsed: ParsedArgv): Promise<void> {
   );
 }
 
-async function handleDisconnect(): Promise<void> {
-  const projectConfigPath = getProjectConfigPath();
-  const config = await readProjectConfig(projectConfigPath);
-  if (!config) {
-    console.log(`No project config found at ${projectConfigPath}`);
-    return;
-  }
-
-  const nextConfig = {
-    ...config,
-  };
-  delete nextConfig.provider;
-  delete nextConfig.models;
-
-  await writeProjectConfig(nextConfig, projectConfigPath);
-  console.log(`Removed provider/model configuration from ${projectConfigPath}`);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Auth management commands                                           */
-/* ------------------------------------------------------------------ */
-
-async function handleAuthStatus(): Promise<void> {
+async function handleDisconnect(parsed: ParsedArgv): Promise<void> {
   const auth = await readAuthFile();
-  const providers = Object.keys(auth);
+  const connectedProviders = Object.keys(auth);
 
-  if (providers.length === 0) {
-    console.log("No stored credentials.");
-    console.log(`ctxpack auth file: ${getAuthFilePath()}`);
-    console.log(`OpenCode auth file: ${getOpenCodeAuthFilePath()}`);
+  if (connectedProviders.length === 0) {
+    console.log("No connected providers.");
     return;
   }
 
-  console.log("Stored credentials:");
-  console.log(`  ctxpack auth file: ${getAuthFilePath()}`);
-  console.log(`  OpenCode auth file: ${getOpenCodeAuthFilePath()}\n`);
-  for (const providerId of providers) {
-    const cred = auth[providerId];
-    if (!cred) continue;
-    if (cred.type === "oauth") {
-      const expiresIn = cred.expiresAt - Date.now();
-      const expired = expiresIn <= 0;
-      const expiryLabel = expired
-        ? "EXPIRED"
-        : `expires in ${Math.round(expiresIn / 60_000)}m`;
-      console.log(`  ${providerId}: OAuth (${expiryLabel})`);
-      if (cred.accountId) {
-        console.log(`    Account ID: ${cred.accountId}`);
-      }
-    } else if (cred.type === "apikey") {
-      const masked = `${cred.apiKey.slice(0, 8)}...${cred.apiKey.slice(-4)}`;
-      console.log(`  ${providerId}: API Key (${masked})`);
+  const explicitProvider =
+    getOptionString(parsed.options, ["provider", "p"]) ??
+    parsed.positionals[0];
+  let providerId = explicitProvider?.trim().toLowerCase();
+
+  if (!providerId) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error(
+        "Usage: ctxpack disconnect <provider> | ctxpack disconnect --provider <provider>\nNo provider specified and interactive picker is unavailable in non-TTY mode.",
+      );
     }
+
+    const selected = await promptChoice(
+      "Select provider to disconnect:",
+      [
+        ...connectedProviders.map((value) => ({
+          label: value,
+          value,
+        })),
+        { label: "Cancel", value: "cancel" },
+      ],
+    );
+    if (selected === "cancel") {
+      return;
+    }
+    providerId = selected;
   }
-}
 
-async function handleAuthLogout(parsed: ParsedArgv): Promise<void> {
-  const providerId = parsed.positionals[0] ?? "openai";
-  const auth = await readAuthFile();
-
-  if (!auth[providerId]) {
-    console.log(`No stored credentials for "${providerId}".`);
-    return;
-  }
-
-  await removeProviderAuth(providerId);
-  console.log(
-    `Removed credentials for "${providerId}" from ${getAuthFilePath()} and ${getOpenCodeAuthFilePath()}.`,
+  const matchedProvider = connectedProviders.find(
+    (connected) => connected.toLowerCase() === providerId?.toLowerCase(),
   );
-}
 
-async function routeAuth(parsed: ParsedArgv): Promise<void> {
-  const sub = parsed.positionals[0];
-
-  if (!sub || sub === "status") {
-    await handleAuthStatus();
+  if (!matchedProvider) {
+    console.log(
+      `No connected provider "${providerId}". Connected providers: ${connectedProviders.join(", ")}`,
+    );
     return;
   }
 
-  if (sub === "logout" || sub === "remove") {
-    // Shift positionals so the provider arg is [0]
-    const shifted: ParsedArgv = {
-      ...parsed,
-      positionals: parsed.positionals.slice(1),
-    };
-    await handleAuthLogout(shifted);
-    return;
-  }
-
-  throw new Error(
-    "Usage: ctxpack auth status\n" + "       ctxpack auth logout [provider]",
+  await removeProviderAuth(matchedProvider);
+  console.log(
+    `Disconnected "${matchedProvider}" in ${getAuthFilePath()} and ${getOpenCodeAuthFilePath()}.`,
   );
 }
 
@@ -873,36 +890,67 @@ async function handleShowConfig(): Promise<void> {
   const globalConfig = await readConfig();
   const projectConfigPath = getProjectConfigPath();
   const projectConfig = await readProjectConfig(projectConfigPath);
+  const auth = await readAuthFile();
 
   const endpoint = resolveEndpoint(globalConfig, undefined, projectConfig);
   const hasApiKey = Boolean(resolveApiKey(globalConfig));
 
-  console.log(`Project config path: ${projectConfigPath}`);
-  console.log(`Project config exists: ${projectConfig ? "yes" : "no"}`);
+  console.log("Project config:");
+  console.log(`  path: ${projectConfigPath}`);
+  console.log(`  exists: ${projectConfig ? "yes" : "no"}`);
   if (projectConfig?.provider?.id) {
-    console.log(`Provider: ${projectConfig.provider.id}`);
+    console.log(`  provider: ${projectConfig.provider.id}`);
   }
   if (projectConfig?.models?.embedding) {
-    console.log(`Embedding model: ${projectConfig.models.embedding}`);
+    console.log(`  embedding model: ${projectConfig.models.embedding}`);
   }
   if (projectConfig?.models?.chat) {
-    console.log(`Chat model: ${projectConfig.models.chat}`);
+    console.log(`  chat model: ${projectConfig.models.chat}`);
   }
-  console.log(`Global config path: ${getConfigPath()}`);
-  console.log(`Effective endpoint: ${endpoint}`);
-  console.log(`Remote API key configured: ${hasApiKey ? "yes" : "no"}`);
+  console.log("\nGlobal config:");
+  console.log(`  path: ${getConfigPath()}`);
+  console.log(`  effective endpoint: ${endpoint}`);
+  console.log(`  remote API key configured: ${hasApiKey ? "yes" : "no"}`);
+
+  const providerIds = Object.keys(auth).sort();
+  console.log("\nConnected providers:");
+  if (providerIds.length === 0) {
+    console.log("  none");
+    return;
+  }
+  for (const providerId of providerIds) {
+    const credential = auth[providerId];
+    if (!credential) continue;
+    console.log(`  - ${providerId} (${credential.type === "oauth" ? "oauth" : "api key"})`);
+  }
 }
 
-async function handleList(parsed: ParsedArgv): Promise<void> {
+async function getScopedResources(
+  client: InstanceType<typeof CtxpackApiClient>,
+  parsed: ParsedArgv,
+) {
+  const scope = await resolveResourceScope(parsed);
+  return client.listResources({
+    scope: scope.scope,
+    ...(scope.projectKey ? { projectKey: scope.projectKey } : {}),
+  });
+}
+
+async function handleResources(parsed: ParsedArgv): Promise<void> {
   const { client, endpoint } = await createApiContext(parsed);
-  const resources = await client.listResources();
+  const scope = await resolveResourceScope(parsed);
+  const resources = await getScopedResources(client, parsed);
 
   if (resources.length === 0) {
-    console.log(`No resources found at ${endpoint}`);
+    const scopeLabel =
+      scope.scope === "global" ? "global scope" : `project scope (${scope.projectKey})`;
+    console.log(`No resources found at ${endpoint} for ${scopeLabel}.`);
     return;
   }
 
-  console.log(`Resources (${resources.length})`);
+  console.log(
+    `Resources (${resources.length}) [${scope.scope === "global" ? "global" : `project:${scope.projectKey}`}]`,
+  );
   for (const resource of resources) {
     const updateTag =
       resource.type === "git" && resource.updateAvailable ? " | updates=available" : "";
@@ -931,11 +979,14 @@ async function handleAdd(parsed: ParsedArgv): Promise<void> {
   const notes = getOptionString(parsed.options, ["notes", "note"]);
   const paths = getOptionArray(parsed.options, ["paths", "p"]);
   const shouldIndex = getOptionBoolean(parsed.options, ["index", "i"]);
+  const scope = await resolveResourceScope(parsed);
 
   const { client } = await createApiContext(parsed);
 
   const created = await client.createResource({
     name,
+    scope: scope.scope,
+    ...(scope.projectKey ? { projectKey: scope.projectKey } : {}),
     type,
     ...(type === "git" ? { url: target } : { path: resolvePath(target) }),
     ...(branch ? { branch } : {}),
@@ -969,20 +1020,44 @@ async function handleRemove(parsed: ParsedArgv): Promise<void> {
 }
 
 async function handleIndex(parsed: ParsedArgv): Promise<void> {
-  const target = parsed.positionals[0];
-  if (!target) {
-    throw new Error("Usage: ctxpack index <name-or-id>");
+  const { client } = await createApiContext(parsed);
+  const all = getOptionBoolean(parsed.options, ["all", "a"]);
+  const shouldSync = getOptionBoolean(parsed.options, ["sync", "s"]);
+  const names = parsed.positionals;
+  if (!all && names.length === 0) {
+    throw new Error(
+      "Usage: ctxpack index <name-or-id> [...] [--sync] [--global] or ctxpack index --all [--sync] [--global]",
+    );
   }
 
-  const { client } = await createApiContext(parsed);
-  const [resourceId] = await resolveResourceNames(client, [target]);
-  if (!resourceId) {
-    throw new Error(`Resource \"${target}\" not found.`);
+  const scopedResources = await getScopedResources(client, parsed);
+  const targets = all
+    ? scopedResources
+    : await resolveResourceRows(client, names, parsed, scopedResources);
+
+  if (targets.length === 0) {
+    console.log("No resources to index.");
+    return;
   }
-  const job = await client.triggerResourceIndex(resourceId);
+
   console.log(
-    `Queued ${job.jobType} job ${job.jobId} for resource ${job.resourceId}`,
+    `${shouldSync ? "Syncing and indexing" : "Indexing"} ${targets.length} resource(s)...\n`,
   );
+
+  for (const resource of targets) {
+    try {
+      if (shouldSync && resource.type === "git") {
+        const syncJob = await client.triggerResourceSync(resource.id);
+        console.log(`[queued] ${resource.name} -> sync job ${syncJob.jobId}`);
+      }
+      const indexJob = await client.triggerResourceIndex(resource.id);
+      console.log(`[queued] ${resource.name} -> index job ${indexJob.jobId}`);
+    } catch (error) {
+      console.error(
+        `[failed] ${resource.name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 }
 
 async function handleSync(parsed: ParsedArgv): Promise<void> {
@@ -990,127 +1065,33 @@ async function handleSync(parsed: ParsedArgv): Promise<void> {
   const all = getOptionBoolean(parsed.options, ["all", "a"]);
   const names = parsed.positionals;
   if (!all && names.length === 0) {
-    throw new Error("Usage: ctxpack sync <name-or-id> [...] or ctxpack sync --all");
+    throw new Error(
+      "Usage: ctxpack sync <name-or-id> [...] [--global] or ctxpack sync --all [--global]",
+    );
   }
 
-  const allResources = await client.listResources();
-  const resourceIds = all
-    ? allResources.map((resource) => resource.id)
-    : await resolveResourceNames(client, names);
+  const scopedResources = await getScopedResources(client, parsed);
+  const targets = all
+    ? scopedResources
+    : await resolveResourceRows(client, names, parsed, scopedResources);
 
-  if (resourceIds.length === 0) {
+  if (targets.length === 0) {
     console.log("No resources to sync.");
     return;
   }
 
-  console.log(`Syncing ${resourceIds.length} resource(s)...\n`);
-  for (const resourceId of resourceIds) {
-    const resource = allResources.find((item) => item.id === resourceId);
-    try {
-      const job = await client.triggerResourceSync(resourceId);
-      console.log(
-        `[queued] ${resource?.name ?? resourceId} -> ${job.jobType} job ${job.jobId}`,
-      );
-    } catch (error) {
-      console.error(
-        `[failed] ${resource?.name ?? resourceId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-}
-
-async function handleReindex(parsed: ParsedArgv): Promise<void> {
-  console.log(
-    "Warning: `reindex` is deprecated. Use `index` for vector indexing and `sync` for git updates.",
-  );
-  const { client } = await createApiContext(parsed);
-  const all = getOptionBoolean(parsed.options, ["all", "a"]);
-  const names = parsed.positionals;
-
-  if (!all && names.length === 0) {
-    throw new Error(
-      "Usage: ctxpack reindex <name-or-id> [...] or ctxpack reindex --all",
-    );
-  }
-
-  const allResources = await client.listResources();
-
-  let targets: typeof allResources;
-
-  if (all) {
-    targets = allResources;
-  } else {
-    targets = [];
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-    for (const name of names) {
-      if (uuidRegex.test(name)) {
-        const match = allResources.find((r) => r.id === name);
-        if (!match) {
-          throw new Error(`Resource with id "${name}" not found.`);
-        }
-        targets.push(match);
-      } else {
-        const match = allResources.find(
-          (r) => r.name.toLowerCase() === name.toLowerCase(),
-        );
-        if (!match) {
-          throw new Error(
-            `Resource "${name}" not found. Available: ${allResources.map((r) => r.name).join(", ")}`,
-          );
-        }
-        targets.push(match);
-      }
-    }
-  }
-
-  if (targets.length === 0) {
-    console.log("No resources to reindex.");
-    return;
-  }
-
-  console.log(`Reindexing ${targets.length} resource(s)...\n`);
-
+  console.log(`Syncing ${targets.length} resource(s)...\n`);
   for (const resource of targets) {
-    const label = `${resource.name} (${resource.type}, ${resource.id})`;
     try {
-      const job = await client.triggerResourceIndex(resource.id);
-      console.log(`[queued] ${label} -> ${job.jobType} job ${job.jobId}`);
+      const job = await client.triggerResourceSync(resource.id);
+      console.log(
+        `[queued] ${resource.name} -> ${job.jobType} job ${job.jobId}`,
+      );
     } catch (error) {
       console.error(
-        `[failed] ${label}: ${error instanceof Error ? error.message : String(error)}`,
+        `[failed] ${resource.name}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-  }
-
-  console.log(
-    "\nAll jobs queued. Use `ctxpack job <job-id>` to check progress.",
-  );
-}
-
-async function handleUpdates(parsed: ParsedArgv): Promise<void> {
-  const { client } = await createApiContext(parsed);
-  const resourceNames = getOptionArray(parsed.options, ["resource", "r"]);
-  const allResources = await client.listResources();
-  const scopedIds = await resolveResourceNames(client, resourceNames);
-  const targets = allResources.filter((resource) =>
-    scopedIds.length === 0 ? true : scopedIds.includes(resource.id),
-  );
-  const stale = targets.filter(
-    (resource) => resource.type === "git" && resource.updateAvailable,
-  );
-
-  if (stale.length === 0) {
-    console.log("No git resources with updates available.");
-    return;
-  }
-
-  console.log(`Resources with updates (${stale.length})`);
-  for (const resource of stale) {
-    console.log(
-      `- ${resource.name} (${resource.id}) local=${resource.lastLocalCommit ?? "unknown"} remote=${resource.lastRemoteCommit ?? "unknown"}`,
-    );
   }
 }
 
@@ -1144,9 +1125,23 @@ function printSearchResult(result: ApiSearchResult, index: number): void {
   console.log(`   ${formatSnippet(result.text)}`);
 }
 
+async function resolveResourceRows(
+  client: InstanceType<typeof CtxpackApiClient>,
+  names: string[],
+  parsed: ParsedArgv,
+  allResources?: Awaited<ReturnType<typeof client.listResources>>,
+): Promise<Awaited<ReturnType<typeof client.listResources>>> {
+  if (names.length === 0) return [];
+  const resources = allResources ?? (await getScopedResources(client, parsed));
+  const resolvedIds = await resolveResourceNames(client, names, parsed, resources);
+  return resources.filter((resource) => resolvedIds.includes(resource.id));
+}
+
 async function resolveResourceNames(
   client: InstanceType<typeof CtxpackApiClient>,
   names: string[],
+  parsed: ParsedArgv,
+  allResources?: Awaited<ReturnType<typeof client.listResources>>,
 ): Promise<string[]> {
   if (names.length === 0) return [];
 
@@ -1157,18 +1152,18 @@ async function resolveResourceNames(
 
   if (toResolve.length === 0) return alreadyUuids;
 
-  const allResources = await client.listResources();
+  const resources = allResources ?? (await getScopedResources(client, parsed));
   const resolved: string[] = [...alreadyUuids];
 
   for (const name of toResolve) {
-    const match = allResources.find(
+    const match = resources.find(
       (r) => r.name.toLowerCase() === name.toLowerCase(),
     );
     if (match) {
       resolved.push(match.id);
     } else {
       throw new Error(
-        `Resource "${name}" not found. Available: ${allResources.map((r) => r.name).join(", ")}`,
+        `Resource "${name}" not found. Available: ${resources.map((r) => r.name).join(", ")}`,
       );
     }
   }
@@ -1193,7 +1188,7 @@ async function maybePrintUpdateReminder(
   const hint =
     stale.length === 1
       ? `ctxpack sync ${stale[0]!.id}`
-      : "ctxpack updates";
+      : "ctxpack sync --all";
   console.log(
     `\nUpdate available for ${stale.length} git resource(s). Run \`${hint}\` to pull latest changes.`,
   );
@@ -1225,7 +1220,15 @@ async function handleSearch(parsed: ParsedArgv): Promise<void> {
   }
 
   const { client } = await createApiContext(parsed);
-  const resourceIds = await resolveResourceNames(client, resourceNames);
+  const resolvedResourceIds = await resolveResourceNames(client, resourceNames, parsed);
+  const resourceIds =
+    resolvedResourceIds.length > 0
+      ? resolvedResourceIds
+      : (await getScopedResources(client, parsed)).map((resource) => resource.id);
+  if (resourceIds.length === 0) {
+    console.log("No resources found in the selected scope. Run `ctxpack resources`.");
+    return;
+  }
 
   const searchPayload = {
     query,
@@ -1591,6 +1594,11 @@ async function resolveDockerComposeDirectory(): Promise<string | null> {
 
 const DEFAULT_DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5432/ctxpack";
+const POSTGRES_CONTAINER_NAME = "ctxpack-postgres";
+const POSTGRES_SERVICE_NAME = "postgres";
+const POSTGRES_USER = "postgres";
+const POSTGRES_DB = "ctxpack";
+const POSTGRES_READY_MAX_ATTEMPTS = 30;
 
 const PROVIDER_API_KEY_ENV_MAP: Record<string, string> = {
   openai: "OPENAI_API_KEY",
@@ -1619,66 +1627,66 @@ async function runShellCommand(
   return { exitCode, stdout, stderr };
 }
 
-async function isDockerContainerRunning(
+type DockerContainerState =
+  | "missing"
+  | "running"
+  | "paused"
+  | "exited"
+  | "created"
+  | "restarting"
+  | "unknown";
+
+async function getDockerContainerState(
   containerName: string,
-): Promise<boolean> {
-  try {
-    const result = await runShellCommand([
-      "docker",
-      "ps",
-      "--filter",
-      `name=${containerName}`,
-      "--filter",
-      "status=running",
-      "--format",
-      "{{.Names}}",
-    ]);
-    return (
-      result.exitCode === 0 && result.stdout.trim().includes(containerName)
-    );
-  } catch {
-    return false;
+): Promise<DockerContainerState> {
+  const result = await runShellCommand([
+    "docker",
+    "inspect",
+    "--format",
+    "{{if .State.Paused}}paused{{else}}{{.State.Status}}{{end}}",
+    containerName,
+  ]);
+
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr.toLowerCase();
+    if (
+      stderr.includes("no such object") ||
+      stderr.includes("no such container")
+    ) {
+      return "missing";
+    }
+    return "unknown";
+  }
+
+  const status = result.stdout.trim().toLowerCase();
+  switch (status) {
+    case "running":
+      return "running";
+    case "paused":
+      return "paused";
+    case "exited":
+      return "exited";
+    case "created":
+      return "created";
+    case "restarting":
+      return "restarting";
+    default:
+      return "unknown";
   }
 }
 
-async function ensurePostgresRunning(composeDir: string | null): Promise<void> {
-  if (await isDockerContainerRunning("ctxpack-postgres")) {
-    console.log("Postgres container already running.");
-    return;
-  }
-
-  if (!composeDir) {
-    console.log(
-      "Warning: docker-compose.yml not found. Ensure Postgres is running manually.",
-    );
-    return;
-  }
-
-  console.log("Starting Postgres container...");
-  const result = await runShellCommand(
-    ["docker", "compose", "up", "-d", "postgres"],
-    composeDir,
-  );
-
-  if (result.exitCode !== 0) {
-    console.error(
-      `Warning: Failed to start Postgres via docker compose: ${result.stderr.trim() || result.stdout.trim()}`,
-    );
-    return;
-  }
-
+async function waitForPostgresReady(containerName: string): Promise<void> {
   console.log("Waiting for Postgres to be ready...");
-  const maxAttempts = 30;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 0; attempt < POSTGRES_READY_MAX_ATTEMPTS; attempt++) {
     const health = await runShellCommand([
       "docker",
       "exec",
-      "ctxpack-postgres",
+      containerName,
       "pg_isready",
       "-U",
-      "postgres",
+      POSTGRES_USER,
       "-d",
-      "ctxpack",
+      POSTGRES_DB,
     ]);
 
     if (health.exitCode === 0) {
@@ -1689,9 +1697,174 @@ async function ensurePostgresRunning(composeDir: string | null): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.log(
-    "Warning: Postgres health check timed out. The server may fail to connect.",
+  throw new Error(
+    "Postgres health check timed out. The server may fail to connect.",
   );
+}
+
+function formatDockerStartupError(errorOutput: string): string {
+  const normalized = errorOutput.toLowerCase();
+  if (
+    normalized.includes("bind for 0.0.0.0:5432 failed") ||
+    normalized.includes("address already in use")
+  ) {
+    return "Failed to start Postgres: port 5432 is already in use on this machine.";
+  }
+
+  if (
+    normalized.includes("permission denied while trying to connect to the docker daemon socket") ||
+    normalized.includes("cannot connect to the docker daemon")
+  ) {
+    return "Failed to start Postgres: Docker daemon is not available. Start Docker and retry.";
+  }
+
+  if (normalized.includes("container name") && normalized.includes("already in use")) {
+    return "Failed to start Postgres: container name ctxpack-postgres is already used by another container.";
+  }
+
+  return `Failed to start Postgres via docker compose: ${errorOutput}`;
+}
+
+async function startExistingPostgresContainer(
+  containerName: string,
+  state: DockerContainerState,
+): Promise<void> {
+  if (state === "paused") {
+    const result = await runShellCommand(["docker", "unpause", containerName]);
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `Failed to unpause Postgres container: ${result.stderr.trim() || result.stdout.trim()}`,
+      );
+    }
+    return;
+  }
+
+  const result = await runShellCommand(["docker", "start", containerName]);
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to start existing Postgres container: ${result.stderr.trim() || result.stdout.trim()}`,
+    );
+  }
+}
+
+async function ensurePostgresRunning(composeDir: string | null): Promise<{
+  startedByThisRun: boolean;
+  containerName: string;
+}> {
+  const containerName = POSTGRES_CONTAINER_NAME;
+  const state = await getDockerContainerState(containerName);
+
+  if (state === "running") {
+    console.log("Postgres container already running.");
+    await waitForPostgresReady(containerName);
+    return { startedByThisRun: false, containerName };
+  }
+
+  if (state === "paused" || state === "exited" || state === "created") {
+    console.log("Starting existing Postgres container...");
+    await startExistingPostgresContainer(containerName, state);
+    await waitForPostgresReady(containerName);
+    return { startedByThisRun: true, containerName };
+  }
+
+  if (state === "restarting") {
+    console.log("Postgres container is restarting. Waiting for readiness...");
+    await waitForPostgresReady(containerName);
+    return { startedByThisRun: false, containerName };
+  }
+
+  if (!composeDir) {
+    throw new Error(
+      "docker-compose.yml not found. Ensure Postgres is running manually or set CTXPACK_PROJECT_ROOT.",
+    );
+  }
+
+  console.log("Starting Postgres container...");
+  const result = await runShellCommand(
+    ["docker", "compose", "up", "-d", POSTGRES_SERVICE_NAME],
+    composeDir,
+  );
+
+  if (result.exitCode !== 0) {
+    const details = (result.stderr.trim() || result.stdout.trim() || "unknown error").trim();
+    throw new Error(formatDockerStartupError(details));
+  }
+
+  await waitForPostgresReady(containerName);
+  return { startedByThisRun: true, containerName };
+}
+
+async function stopPostgresContainer(containerName: string): Promise<void> {
+  const state = await getDockerContainerState(containerName);
+  if (state !== "running" && state !== "restarting") {
+    return;
+  }
+
+  const result = await runShellCommand(["docker", "stop", containerName]);
+  if (result.exitCode !== 0) {
+    console.error(
+      `Warning: Failed to stop Postgres container ${containerName}: ${result.stderr.trim() || result.stdout.trim()}`,
+    );
+  } else {
+    console.log("Postgres container stopped.");
+  }
+}
+
+function isDockerSocketPermissionError(error: unknown): boolean {
+  const message = toErrorMessage(error).toLowerCase();
+  return (
+    message.includes("permission denied while trying to connect to the docker daemon socket") ||
+    message.includes("cannot connect to the docker daemon")
+  );
+}
+
+function isIntentionalShutdown(exitCode: number, requestedShutdown: boolean): boolean {
+  return requestedShutdown && (exitCode === 0 || exitCode === 130 || exitCode === 143);
+}
+
+async function forwardSignalAndWait(
+  child: ReturnType<typeof Bun.spawn>,
+  signal: NodeJS.Signals,
+): Promise<void> {
+  try {
+    child.kill(signal);
+  } catch {
+    // Child may already be gone.
+  }
+}
+
+async function withServerSignalHandling(
+  child: ReturnType<typeof Bun.spawn>,
+): Promise<{ exitCode: number; requestedShutdown: boolean }> {
+  let requestedShutdown = false;
+  let shutdownInProgress = false;
+
+  const handleSignal = async (signal: NodeJS.Signals) => {
+    if (shutdownInProgress) {
+      return;
+    }
+    shutdownInProgress = true;
+    requestedShutdown = true;
+    await forwardSignalAndWait(child, signal);
+  };
+
+  const onSigint = () => {
+    void handleSignal("SIGINT");
+  };
+  const onSigterm = () => {
+    void handleSignal("SIGTERM");
+  };
+
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
+
+  try {
+    const exitCode = await child.exited;
+    return { exitCode, requestedShutdown };
+  } finally {
+    process.off("SIGINT", onSigint);
+    process.off("SIGTERM", onSigterm);
+  }
 }
 
 async function ensureDatabaseSchema(
@@ -1770,9 +1943,9 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
   const endpoint =
     overrideEndpoint ??
     ensured.config.server?.endpoint ??
-    "http://localhost:3000";
+    "http://localhost:8787";
   const portOption = getOptionString(parsed.options, ["port", "p"]);
-  const port = portOption ?? inferPortFromEndpoint(endpoint) ?? "3000";
+  const port = portOption ?? inferPortFromEndpoint(endpoint) ?? "8787";
 
   const storageRoot = ensured.config.storage?.root ?? getCtxpackHomePath();
   const reposPath = ensured.config.storage?.repos ?? getCtxpackReposPath();
@@ -1792,10 +1965,21 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 
   const skipSetup = getOptionBoolean(parsed.options, ["skip-setup"]);
+  let postgresStartedByThisRun = false;
 
   if (!skipSetup) {
     const composeDir = await resolveDockerComposeDirectory();
-    await ensurePostgresRunning(composeDir);
+    try {
+      const ensuredPostgres = await ensurePostgresRunning(composeDir);
+      postgresStartedByThisRun = ensuredPostgres.startedByThisRun;
+    } catch (error) {
+      if (isDockerSocketPermissionError(error)) {
+        throw new Error(
+          "Docker access denied. Ensure your user can access the Docker daemon and retry.",
+        );
+      }
+      throw error;
+    }
 
     const dbPackageDir = await resolveDbPackageDirectory();
     await ensureDatabaseSchema(databaseUrl, dbPackageDir);
@@ -1894,14 +2078,24 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
     env: childEnv,
   });
 
-  const exitCode = await child.exited;
-  if (exitCode !== 0) {
-    throw new Error(`Server process exited with code ${String(exitCode)}`);
+  try {
+    const { exitCode, requestedShutdown } = await withServerSignalHandling(child);
+    if (isIntentionalShutdown(exitCode, requestedShutdown)) {
+      process.exitCode = exitCode === 0 ? 130 : exitCode;
+      return;
+    }
+    if (exitCode !== 0) {
+      throw new Error(`Server process exited with code ${String(exitCode)}`);
+    }
+  } finally {
+    if (postgresStartedByThisRun) {
+      await stopPostgresContainer(POSTGRES_CONTAINER_NAME);
+    }
   }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tool commands: grep, read, list, glob                              */
+/*  Tool commands: grep, read, ls, glob                                */
 /* ------------------------------------------------------------------ */
 
 async function resolveResourceIdForTool(
@@ -1912,7 +2106,7 @@ async function resolveResourceIdForTool(
   if (resourceNames.length === 0) {
     throw new Error("--resource <name-or-id> is required for tool commands.");
   }
-  const resolved = await resolveResourceNames(client, [resourceNames[0]!]);
+  const resolved = await resolveResourceNames(client, [resourceNames[0]!], parsed);
   return resolved[0]!;
 }
 
@@ -2044,7 +2238,7 @@ async function routeRemote(parsed: ParsedArgv): Promise<void> {
   const sub = parsed.subcommand;
   if (!sub) {
     throw new Error(
-      "Usage: ctxpack remote <link|unlink|add|list|ask|rm|sync|index|job|updates>",
+      "Usage: ctxpack remote <link|unlink|add|resources|ask|rm|sync|index|job>",
     );
   }
 
@@ -2063,9 +2257,10 @@ async function routeRemote(parsed: ParsedArgv): Promise<void> {
     return;
   }
 
+  const mappedCommand = sub === "list" ? "resources" : sub;
   const aliased: ParsedArgv = {
     ...parsed,
-    command: sub,
+    command: mappedCommand,
     subcommand: null,
     options: {
       ...parsed.options,
@@ -2096,10 +2291,7 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
       await handleConnect(parsed);
       return;
     case "disconnect":
-      await handleDisconnect();
-      return;
-    case "auth":
-      await routeAuth(parsed);
+      await handleDisconnect(parsed);
       return;
     case "config":
       await handleShowConfig();
@@ -2108,12 +2300,8 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
     case "serve":
       await handleServer(parsed);
       return;
-    case "list":
-      if (getOptionArray(parsed.options, ["resource", "r"]).length > 0) {
-        await handleListFiles(parsed);
-      } else {
-        await handleList(parsed);
-      }
+    case "resources":
+      await handleResources(parsed);
       return;
     case "add":
       await handleAdd(parsed);
@@ -2127,12 +2315,6 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
       return;
     case "sync":
       await handleSync(parsed);
-      return;
-    case "reindex":
-      await handleReindex(parsed);
-      return;
-    case "updates":
-      await handleUpdates(parsed);
       return;
     case "job":
       await handleJob(parsed);
@@ -2154,6 +2336,7 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
     case "read":
       await handleRead(parsed);
       return;
+    case "ls":
     case "files":
       await handleListFiles(parsed);
       return;
@@ -2179,7 +2362,7 @@ async function main(): Promise<void> {
       printHelp();
       return;
     }
-    await handleSetup(parsed);
+    await handleStatus();
     return;
   }
   await runCommand(parsed);

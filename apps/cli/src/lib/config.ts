@@ -39,7 +39,7 @@ export type ProjectConfig = {
   resources?: unknown[];
 };
 
-const DEFAULT_ENDPOINT = "http://localhost:3000";
+const DEFAULT_ENDPOINT = "http://localhost:8787";
 const PROJECT_CONFIG_FILENAME = "ctxpack.config.jsonc";
 const DEFAULT_SCHEMA_URL = "https://ctxpack.dev/schema.json";
 const DEFAULT_PROVIDER_ID = "openai";
@@ -167,12 +167,7 @@ export async function writeProjectConfig(
   configPath = getProjectConfigPath(),
 ): Promise<void> {
   await mkdir(dirname(configPath), { recursive: true });
-  const contents = [
-    "// ctxpack project configuration",
-    "// Edit provider/model defaults and server/storage paths as needed.",
-    JSON.stringify(config, null, 2),
-    "",
-  ].join("\n");
+  const contents = `${JSON.stringify(config, null, 2)}\n`;
   await writeFile(configPath, contents, "utf8");
 }
 

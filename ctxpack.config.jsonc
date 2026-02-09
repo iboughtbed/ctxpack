@@ -1,9 +1,7 @@
-// ctxpack project configuration
-// Edit provider/model defaults and server/storage paths as needed.
 {
   "$schema": "https://ctxpack.dev/schema.json",
   "server": {
-    "endpoint": "http://localhost:3000"
+    "endpoint": "http://localhost:8787"
   },
   "storage": {
     "root": "/root/.ctxpack",
