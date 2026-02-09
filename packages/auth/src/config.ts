@@ -7,7 +7,7 @@ import { db } from "@ctxpack/db";
 export const AUTH_API_KEY_HEADERS = ["x-api-key"] as const;
 
 export const auth = betterAuth({
-  basePath: process.env.BETTER_AUTH_URL,
+  basePath: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
