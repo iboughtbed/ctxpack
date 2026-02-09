@@ -13,6 +13,8 @@ Local-first CLI for indexing codebases and retrieving context for agents.
 ## Requirements
 
 - `bun>=1.3.0`
+- `ripgrep` (rg)
+- `docker`
 
 ## When to use
 
