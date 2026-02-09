@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.2.0
+
+### Minor Changes
+
+- f0f31f3: fix: dynamically load and create Hono.js server in CLI; and improve lifecycle and cleanup for CLI server
+
 ## 1.1.2
 
 ### Patch Changes
