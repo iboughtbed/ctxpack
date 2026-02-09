@@ -3,6 +3,7 @@
 `ctxpack` gives AI agents high-quality context from your codebases.
 
 It supports:
+
 - Local and git resources
 - Hybrid search (vector + text)
 - Agent-style exploration and research
@@ -78,7 +79,7 @@ Use `ask` by default for question answering. Use `search` when you need a specif
 
 ## Docs
 
-- Docs site: https://ctxpack.dev/docs
+- Docs site: https://docs.ctxpack.dev
 - Project docs in this repo: `docs/`
 - CLI-specific notes: `apps/cli/README.md`
 
