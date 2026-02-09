@@ -1,0 +1,121 @@
+---
+title: "Commands"
+description: "Core ctxpack CLI command reference"
+---
+
+## Status and Setup
+
+```bash
+ctxpack
+ctxpack setup [--force]
+ctxpack help
+```
+
+`ctxpack` (no args) does not create files. If setup is missing, it tells you to run `ctxpack setup`.
+
+## Connect LLM providers
+
+Connect:
+
+```bash
+ctxpack connect openai
+ctxpack connect # interactive
+```
+
+Disconnect:
+
+```bash
+ctxpack disconnect openai
+ctxpack disconnect --provider <id>
+ctxpack disconnect # interactive (TTY)
+```
+
+## Configuration
+
+```bash
+ctxpack config
+```
+
+Prints both project and global config, plus connected providers.
+
+## Server
+
+```bash
+ctxpack server [--port <n>]
+ctxpack serve [--port <n>]
+```
+
+De
+
+## Ask and Search
+
+```bash
+ctxpack ask <query> [options]
+ctxpack search <query> --raw
+ctxpack search <query> --explore
+ctxpack search <query> --research
+ctxpack search <query> --research --async
+ctxpack research-status <job-id>
+```
+
+Use `ctxpack ask` as the default command for question answering.
+
+`ctxpack ask` is an alias for `ctxpack search --explore`.
+
+Use `ctxpack search` directly when you need explicit modes like `--raw` or `--research`.
+
+Common options:
+
+```bash
+--resource, -r <name-or-id>
+--mode <hybrid|text|vector>
+--stream
+--verbose, -v
+--top-k <n>
+--alpha <0-1>
+--global, -g
+```
+
+## Resources
+
+Default resource scope is the current project. Use `-g` / `--global` for global resources.
+
+```bash
+ctxpack resources [--global]
+ctxpack add <url-or-path> [--name <name>] [--type git|local] [--branch <branch>] [--commit <sha>] [--paths <a,b>] [--notes <text>] [--index] [--global]
+ctxpack rm <resource-id> [--global]
+ctxpack sync <name-or-id> [...] [--all] [--global]
+ctxpack index <name-or-id> [...] [--all] [--sync] [--global]
+ctxpack job <job-id>
+```
+
+- `sync`: for git resources, pulls latest from remote; for local resources, refreshes local content state.
+- `index`: runs embedding/indexing.
+- `index --sync`: for git resources, syncs first then indexes.
+
+## Tool Commands
+
+```bash
+ctxpack grep <pattern> --resource <name-or-id> [--paths a,b] [--case-sensitive]
+ctxpack read <filepath> --resource <name-or-id> [--start-line N] [--end-line N]
+ctxpack ls --resource <name-or-id> [--path <subpath>]
+ctxpack glob <pattern> --resource <name-or-id>
+```
+
+## Remote Commands
+
+```bash
+ctxpack remote link --key <api-key> [--endpoint <url>]
+ctxpack remote unlink
+ctxpack remote add ...
+ctxpack remote resources
+ctxpack remote ask ...
+ctxpack remote rm <resource-id>
+```
+
+## Global API Options
+
+```bash
+--endpoint <url>   # Override API endpoint
+--api-key <key>    # Override API key for this command
+```

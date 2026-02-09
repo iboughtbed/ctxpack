@@ -1,150 +1,91 @@
 # ctxpack
 
-ctxpack is a Bun + Turborepo monorepo for providing external codebase context to agents.
+`ctxpack` gives AI agents high-quality context from your codebases.
 
-It includes:
+It supports:
+- Local and git resources
+- Hybrid search (vector + text)
+- Agent-style exploration and research
+- Local server mode (`ctxpack serve`)
 
-- `apps/honojs`: Hono backend + MCP server
-- `apps/cli`: CLI (OpenTUI/Solid.js) for local workflows
-- `apps/nextjs`: web dashboard (lower priority)
-- `packages/db`: Drizzle + PostgreSQL/pgvector
+## Installation
 
-## Local-First Architecture
-
-Local mode is the current priority.
-
-- Content sync and vector indexing are separated.
-- Text tools (`list`, `grep`, `read`, `glob`) are independent of vector embeddings.
-- CLI forwards model/provider keys per request to Hono via headers.
-- Server startup values are fallback defaults; request headers can override without restart.
-
-## Quick Start
-
-### 1. Start server (with logs)
+### Global install
 
 ```bash
-bun run cli:run -- serve
+bun i -g ctxpack@latest
 ```
 
-### 2. Connect provider
+### From source
 
 ```bash
-bun run cli:run -- connect openai
+git clone https://github.com/iboughtbed/ctxpack.git
+cd ctxpack
+bun install
+bun run cli:run -- help
 ```
 
-### 3. Add and index local resource
+## Quickstart
+
+1. Setup project config
 
 ```bash
-bun run cli:run -- add . --type local --paths ./apps/honojs --name ctxpack-hono-local --index
+ctxpack setup
 ```
 
-## Core Commands
+If you are running from source instead of global install, use `bun run cli:run -- <command>`.
 
-### Setup and config
+2. Connect your model provider
 
 ```bash
-bun run cli:run -- setup --force
-bun run cli:run -- config
+ctxpack connect openai
 ```
 
-### Resources
+3. Start local server
 
 ```bash
-bun run cli:run -- list
-bun run cli:run -- add <url-or-path> [--type git|local] [--paths <a,b>] [--name <name>] [--index]
-bun run cli:run -- sync <resource-id|name>
-bun run cli:run -- index <resource-id|name>
-bun run cli:run -- updates
+ctxpack serve
 ```
 
-### Search modes
+4. Add a resource and index
 
 ```bash
-bun run cli:run -- search "<query>"                    # quick AI answer
-bun run cli:run -- search "<query>" --raw              # raw ranked chunks, no AI
-bun run cli:run -- search "<query>" --explore          # agent mode
-bun run cli:run -- search "<query>" --research         # deep research mode
+ctxpack add . --type local --name my-repo --index
 ```
 
-Common options:
+5. Ask a question
 
 ```bash
---mode <hybrid|text|vector>
---resource, -r <name-or-id>
---top-k <n>
---alpha <0-1>
---stream
---verbose, -v
+ctxpack ask "where is auth middleware defined?"
 ```
 
-## Streaming and Logging Test Matrix
-
-Run server in one terminal:
+## Common Commands
 
 ```bash
-bun run cli:run -- serve
+ctxpack serve
+ctxpack resources
+ctxpack add <url-or-path> [--type git|local] [--name <name>] [--index]
+ctxpack sync <name-or-id>
+ctxpack index <name-or-id>
+ctxpack ask "<query>"
+ctxpack search "<query>" --raw
+ctxpack search "<query>" --explore
+ctxpack search "<query>" --research
+ctxpack research-status <job-id>
 ```
 
-Run client commands in another terminal:
+Use `ask` by default for question answering. Use `search` when you need a specific mode like `--raw` or `--research`.
+
+## Docs
+
+- Docs site: https://ctxpack.dev/docs
+- Project docs in this repo: `docs/`
+- CLI-specific notes: `apps/cli/README.md`
+
+## Development
 
 ```bash
-# 1) quick answer, non-stream
-bun run cli:run -- search "How are code chunks embedded with AI SDK?" --mode text -v
-
-# 2) quick answer, stream
-bun run cli:run -- search "How are code chunks embedded with AI SDK?" --mode text --stream -v
-
-# 3) explore, non-stream
-bun run cli:run -- search "Trace indexing pipeline from sync to embeddings" --explore --mode hybrid -v
-
-# 4) explore, stream
-bun run cli:run -- search "Trace indexing pipeline from sync to embeddings" --explore --mode hybrid --stream -v
-
-# 5) research, non-stream
-bun run cli:run -- search "Compare text search and vector search paths" --research --mode hybrid -v
-
-# 6) research, stream
-bun run cli:run -- search "Compare text search and vector search paths" --research --mode hybrid --stream -v
-
-# 7) raw baseline (no LLM)
-bun run cli:run -- search "embeddingModel" --raw --mode text --top-k 20 -v
+bun install
+bun run cli:run -- help
+bun run server:dev
 ```
-
-Optional verbose runtime diagnostics:
-
-```bash
-DEBUG=* bun run cli:run -- search "<query>" --explore --stream -v
-```
-
-## Tool Commands (Text Path Validation)
-
-```bash
-bun run cli:run -- list --resource <name-or-id> --path src
-bun run cli:run -- grep "streamText|generateText|instructions|store|stream" --resource <name-or-id>
-bun run cli:run -- read src/lib/models.ts --resource <name-or-id> --start-line 1 --end-line 260
-bun run cli:run -- glob "**/*search*.ts" --resource <name-or-id>
-```
-
-## Authentication Interop (ctxpack + OpenCode)
-
-OpenAI auth is stored in ctxpack and mirrored to OpenCode-compatible storage:
-
-- Linux/macOS (XDG): `~/.local/share/opencode/auth.json`
-- Windows: `%APPDATA%/opencode/auth.json`
-
-Check credentials:
-
-```bash
-bun run cli:run -- auth status
-```
-
-Logout:
-
-```bash
-bun run cli:run -- auth logout openai
-```
-
-## Notes
-
-- Embeddings still require API-key-capable provider credentials.
-- If you change provider/model config via CLI, per-request headers apply immediately; server restart is not required for those request-level overrides.

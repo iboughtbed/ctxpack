@@ -1,0 +1,55 @@
+---
+title: "Quickstart"
+description: "Go from install to first answer"
+---
+
+## 1. Start the local server
+
+```bash
+ctxpack serve
+```
+
+## 2. Connect a model provider
+
+```bash
+ctxpack connect openai
+```
+
+## 3. Add a resource
+
+Local folders on your machine.
+
+```bash
+ctxpack add ./local-folder --type local --name local-folder
+```
+
+Or clone a git repository.
+
+```bash
+ctxpack add https://github.com/org/repo --type git --name repo
+```
+
+## 4. Sync and index
+
+```bash
+ctxpack sync repo
+ctxpack index repo --sync
+```
+
+- `sync` pulls latest for git resources (local resources are already local).
+- `index --sync` syncs git content first, then indexes embeddings.
+
+## 5. Ask a question
+
+```bash
+ctxpack ask "Where is request-level model config applied?"
+```
+
+`ask` is an alias for `search --explore`.
+
+## 6. Go deeper when needed
+
+```bash
+ctxpack ask "Trace indexing pipeline" --verbose
+ctxpack search "Compare text and vector retrieval paths" --research
+```

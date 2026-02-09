@@ -1,0 +1,32 @@
+---
+title: "ctxpack"
+description: "CLI for searchable code context"
+---
+
+`ctxpack` is a CLI that helps you give AI tools reliable context from your projects.
+
+It lets you:
+
+- add local folders or git repositories as resources
+- sync and index them
+- search with hybrid, text, or vector strategies
+- run quick answers, tool-based exploration, or deep research
+
+## Install
+
+```bash
+bun i -g ctxpack@latest
+```
+
+## First Run
+
+```bash
+ctxpack          # shows setup status
+ctxpack setup    # creates ./ctxpack.config.jsonc if missing
+ctxpack connect  # connects to an LLM provider
+ctxpack serve    # starts the local server
+```
+
+## Next Step
+
+Follow the [Quickstart](/quickstart) to add a resource and run your first `ctxpack ask`.

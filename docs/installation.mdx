@@ -1,0 +1,43 @@
+---
+title: "Installation"
+description: "Install and configure the ctxpack CLI"
+---
+
+## Prerequisites
+
+- Bun `>= v1.3.0`
+
+## Install
+
+```bash
+bun i -g ctxpack@latest
+```
+
+## Initialize Config
+
+Run from your project root:
+
+```bash
+ctxpack
+ctxpack setup
+```
+
+`ctxpack` will tell you setup status. `ctxpack setup` creates `./ctxpack.config.jsonc` when missing.
+
+## Connect a Provider
+
+```bash
+ctxpack connect --provider openai
+```
+
+Or interactive:
+
+```bash
+ctxpack connect
+```
+
+## Verify Configuration
+
+```bash
+ctxpack config
+```
