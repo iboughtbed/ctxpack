@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.1.2
+
+### Patch Changes
+
+- e54225e: fix(cli): fix stream mode issues for models
+
 ## 1.1.1
 
 ### Patch Changes
