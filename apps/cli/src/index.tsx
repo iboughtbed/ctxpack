@@ -41,6 +41,7 @@ import {
   resolveApiKey,
   resolveEndpoint,
   saveRemoteConfig,
+  writeConfig,
   writeProjectConfig,
 } from "./lib/config";
 import {
@@ -75,13 +76,15 @@ type HonoServerInstance = {
 };
 
 const DEFAULT_PROVIDER_API_KEY_ENV: Record<string, string> = {
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  cohere: "COHERE_API_KEY",
-  mistral: "MISTRAL_API_KEY",
-  xai: "XAI_API_KEY",
+  openai: "CTXPACK_OPENAI_API_KEY",
+  anthropic: "CTXPACK_ANTHROPIC_API_KEY",
+  google: "CTXPACK_GOOGLE_GENERATIVE_AI_API_KEY",
+  cohere: "CTXPACK_COHERE_API_KEY",
+  mistral: "CTXPACK_MISTRAL_API_KEY",
+  xai: "CTXPACK_XAI_API_KEY",
 };
+const DEFAULT_PROVIDER_ID = "openai";
+const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 
 type ConnectProvider = {
   id: string;
@@ -304,6 +307,10 @@ function defaultApiKeyEnvForProvider(providerId: string): string {
   );
 }
 
+function toCtxpackEnvName(envVar: string): string {
+  return `CTXPACK_${envVar}`;
+}
+
 /**
  * Reads stored provider credentials (auth.json) and environment variables
  * to build a ProviderKeys map that will be forwarded to the Hono server
@@ -313,14 +320,15 @@ async function resolveProviderKeys(): Promise<ProviderKeys> {
   const keys: ProviderKeys = {};
   const auth = await readAuthFile();
 
-  // Resolve from env vars first
-  if (process.env.OPENAI_API_KEY) keys.openai = process.env.OPENAI_API_KEY;
-  if (process.env.ANTHROPIC_API_KEY)
-    keys.anthropic = process.env.ANTHROPIC_API_KEY;
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY)
-    keys.google = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  // Resolve from ctxpack-scoped env vars first.
+  if (process.env.CTXPACK_OPENAI_API_KEY)
+    keys.openai = process.env.CTXPACK_OPENAI_API_KEY;
+  if (process.env.CTXPACK_ANTHROPIC_API_KEY)
+    keys.anthropic = process.env.CTXPACK_ANTHROPIC_API_KEY;
+  if (process.env.CTXPACK_GOOGLE_GENERATIVE_AI_API_KEY)
+    keys.google = process.env.CTXPACK_GOOGLE_GENERATIVE_AI_API_KEY;
 
-  // Override with stored credentials if present
+  // Fill missing keys from stored credentials.
   for (const [providerId, cred] of Object.entries(auth)) {
     const id = providerId.toLowerCase();
 
@@ -350,15 +358,51 @@ async function resolveProviderKeys(): Promise<ProviderKeys> {
   return keys;
 }
 
-function resolveModelConfig(
+function resolveProviderRuntimeConfig(
+  globalConfig: Awaited<ReturnType<typeof readConfig>>,
   projectConfig: Awaited<ReturnType<typeof readProjectConfig>>,
-): ModelConfig {
-  const baseProvider = (projectConfig?.provider?.id ?? "openai").toLowerCase();
+): {
+  providerId: string;
+  embeddingModel: string;
+  chatModel: string;
+  providerApiKeyEnv: string;
+} {
+  const providerId = (
+    projectConfig?.provider?.id ??
+    globalConfig.provider?.id ??
+    DEFAULT_PROVIDER_ID
+  ).toLowerCase();
   const embeddingModel =
     projectConfig?.models?.embedding ??
     projectConfig?.provider?.model ??
-    "text-embedding-3-small";
-  const chatModel = projectConfig?.models?.chat ?? DEFAULT_CODEX_CHAT_MODEL;
+    globalConfig.models?.embedding ??
+    globalConfig.provider?.model ??
+    DEFAULT_EMBEDDING_MODEL;
+  const chatModel =
+    projectConfig?.models?.chat ??
+    globalConfig.models?.chat ??
+    DEFAULT_CODEX_CHAT_MODEL;
+  const providerApiKeyEnv =
+    projectConfig?.provider?.apiKeyEnv ??
+    globalConfig.provider?.apiKeyEnv ??
+    defaultApiKeyEnvForProvider(providerId);
+
+  return {
+    providerId,
+    embeddingModel,
+    chatModel,
+    providerApiKeyEnv,
+  };
+}
+
+function resolveModelConfig(
+  globalConfig: Awaited<ReturnType<typeof readConfig>>,
+  projectConfig: Awaited<ReturnType<typeof readProjectConfig>>,
+): ModelConfig {
+  const providerConfig = resolveProviderRuntimeConfig(globalConfig, projectConfig);
+  const baseProvider = providerConfig.providerId;
+  const embeddingModel = providerConfig.embeddingModel;
+  const chatModel = providerConfig.chatModel;
   const researchProvider =
     process.env.CTXPACK_RESEARCH_PROVIDER?.toLowerCase() ?? baseProvider;
   const researchModel = process.env.CTXPACK_RESEARCH_MODEL ?? chatModel;
@@ -419,7 +463,7 @@ async function createApiContext(parsed: ParsedArgv): Promise<ApiContext> {
   }
 
   const providerKeys = await resolveProviderKeys();
-  const modelConfig = resolveModelConfig(projectConfig);
+  const modelConfig = resolveModelConfig(globalConfig, projectConfig);
 
   return {
     client: new CtxpackApiClient({
@@ -736,27 +780,37 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
   }
 
   const ensured = await ensureProjectConfig();
+  const globalConfig = await readConfig();
   const current = ensured.config;
 
-  const nextProviderId = effectiveProvider ?? current.provider?.id ?? "openai";
+  const currentProviderId =
+    current.provider?.id ?? globalConfig.provider?.id ?? DEFAULT_PROVIDER_ID;
+  const nextProviderId = effectiveProvider ?? currentProviderId;
   const providerChanged =
     typeof effectiveProvider === "string" &&
     effectiveProvider.length > 0 &&
-    effectiveProvider !== (current.provider?.id ?? "");
+    effectiveProvider !== currentProviderId;
   const nextEmbeddingModel =
     embeddingModel ??
     model ??
     current.models?.embedding ??
     current.provider?.model ??
-    "text-embedding-3-small";
+    globalConfig.models?.embedding ??
+    globalConfig.provider?.model ??
+    DEFAULT_EMBEDDING_MODEL;
   const nextChatModel =
-    chatModel ?? current.models?.chat ?? DEFAULT_CODEX_CHAT_MODEL;
+    chatModel ??
+    current.models?.chat ??
+    globalConfig.models?.chat ??
+    DEFAULT_CODEX_CHAT_MODEL;
   const nextApiKeyEnv =
     apiKeyEnv ??
-    (providerChanged ? undefined : current.provider?.apiKeyEnv) ??
+    (providerChanged
+      ? undefined
+      : current.provider?.apiKeyEnv ?? globalConfig.provider?.apiKeyEnv) ??
     defaultApiKeyEnvForProvider(nextProviderId);
 
-  const nextConfig = {
+  const nextProjectConfig = {
     ...current,
     provider: {
       ...(current.provider ?? {}),
@@ -770,9 +824,27 @@ async function handleConnect(parsed: ParsedArgv): Promise<void> {
       chat: nextChatModel,
     },
   };
+  const nextGlobalConfig = {
+    ...globalConfig,
+    provider: {
+      ...(globalConfig.provider ?? {}),
+      id: nextProviderId,
+      model: nextEmbeddingModel,
+      apiKeyEnv: nextApiKeyEnv,
+    },
+    models: {
+      ...(globalConfig.models ?? {}),
+      embedding: nextEmbeddingModel,
+      chat: nextChatModel,
+    },
+  };
 
-  await writeProjectConfig(nextConfig, ensured.path);
+  await Promise.all([
+    writeProjectConfig(nextProjectConfig, ensured.path),
+    writeConfig(nextGlobalConfig),
+  ]);
   console.log(`Updated provider configuration in ${ensured.path}`);
+  console.log(`Updated global provider defaults in ${getConfigPath()}`);
   console.log(`Provider: ${nextProviderId}`);
   console.log(`Embedding model: ${nextEmbeddingModel}`);
   console.log(`Chat model: ${nextChatModel}`);
@@ -799,19 +871,32 @@ async function handleConnectOpenAI(params: {
       `\nAPI key stored in ${getAuthFilePath()} (mirrored to ${getOpenCodeAuthFilePath()})`,
     );
 
-    // Update project config -- keep existing models, just ensure provider is openai
+    // Update project + global config -- keep existing models.
     const ensured = await ensureProjectConfig();
+    const globalConfig = await readConfig();
     const current = ensured.config;
-    const nextConfig = {
+    const nextProjectConfig = {
       ...current,
       provider: {
         ...(current.provider ?? {}),
         id: "openai",
-        apiKeyEnv: "OPENAI_API_KEY",
+        apiKeyEnv: "CTXPACK_OPENAI_API_KEY",
       },
     };
-    await writeProjectConfig(nextConfig, ensured.path);
+    const nextGlobalConfig = {
+      ...globalConfig,
+      provider: {
+        ...(globalConfig.provider ?? {}),
+        id: "openai",
+        apiKeyEnv: "CTXPACK_OPENAI_API_KEY",
+      },
+    };
+    await Promise.all([
+      writeProjectConfig(nextProjectConfig, ensured.path),
+      writeConfig(nextGlobalConfig),
+    ]);
     console.log("Provider set to openai (API key mode).");
+    console.log(`Global provider defaults updated in ${getConfigPath()}.`);
     return;
   }
 
@@ -828,11 +913,13 @@ async function handleConnectOpenAI(params: {
 
   // Auto-update project config to use a Codex-compatible chat model
   const ensured = await ensureProjectConfig();
+  const globalConfig = await readConfig();
   const current = ensured.config;
-  const currentChat = current.models?.chat ?? "";
+  const currentChat =
+    current.models?.chat ?? globalConfig.models?.chat ?? DEFAULT_CODEX_CHAT_MODEL;
   const needsModelUpdate = !CODEX_MODELS.has(currentChat);
 
-  const nextConfig = {
+  const nextProjectConfig = {
     ...current,
     provider: {
       ...(current.provider ?? {}),
@@ -843,9 +930,24 @@ async function handleConnectOpenAI(params: {
       chat: needsModelUpdate ? DEFAULT_CODEX_CHAT_MODEL : currentChat,
     },
   };
+  const nextGlobalConfig = {
+    ...globalConfig,
+    provider: {
+      ...(globalConfig.provider ?? {}),
+      id: "openai",
+    },
+    models: {
+      ...(globalConfig.models ?? {}),
+      chat: needsModelUpdate ? DEFAULT_CODEX_CHAT_MODEL : currentChat,
+    },
+  };
 
-  await writeProjectConfig(nextConfig, ensured.path);
+  await Promise.all([
+    writeProjectConfig(nextProjectConfig, ensured.path),
+    writeConfig(nextGlobalConfig),
+  ]);
   console.log(`Provider set to openai (OAuth mode).`);
+  console.log(`Global provider defaults updated in ${getConfigPath()}.`);
   if (needsModelUpdate) {
     console.log(
       `Chat model auto-set to ${DEFAULT_CODEX_CHAT_MODEL} (compatible with ChatGPT subscription).`,
@@ -948,6 +1050,7 @@ async function handleShowConfig(): Promise<void> {
 
   const endpoint = resolveEndpoint(globalConfig, undefined, projectConfig);
   const hasApiKey = Boolean(resolveApiKey(globalConfig));
+  const providerConfig = resolveProviderRuntimeConfig(globalConfig, projectConfig);
 
   console.log("Project config:");
   console.log(`  path: ${projectConfigPath}`);
@@ -965,6 +1068,20 @@ async function handleShowConfig(): Promise<void> {
   console.log(`  path: ${getConfigPath()}`);
   console.log(`  effective endpoint: ${endpoint}`);
   console.log(`  remote API key configured: ${hasApiKey ? "yes" : "no"}`);
+  if (globalConfig.provider?.id) {
+    console.log(`  default provider: ${globalConfig.provider.id}`);
+  }
+  if (globalConfig.models?.embedding) {
+    console.log(`  default embedding model: ${globalConfig.models.embedding}`);
+  }
+  if (globalConfig.models?.chat) {
+    console.log(`  default chat model: ${globalConfig.models.chat}`);
+  }
+  console.log("\nEffective local provider defaults:");
+  console.log(`  provider: ${providerConfig.providerId}`);
+  console.log(`  embedding model: ${providerConfig.embeddingModel}`);
+  console.log(`  chat model: ${providerConfig.chatModel}`);
+  console.log(`  API key env var: ${providerConfig.providerApiKeyEnv}`);
 
   const providerIds = Object.keys(auth).sort();
   console.log("\nConnected providers:");
@@ -1637,27 +1754,6 @@ function normalizeHonoEntryPath(pathValue: string): string {
   return join(trimmed, "src", "index.ts");
 }
 
-async function resolveHonoEntrypointPath(): Promise<string> {
-  const sourceDir = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    process.env.CTXPACK_HONO_PATH,
-    resolvePath(process.cwd(), "apps/honojs"),
-    resolvePath(sourceDir, "..", "..", "honojs"),
-    resolvePath(sourceDir, "..", "honojs"),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-
-  for (const candidate of candidates) {
-    const entrypoint = normalizeHonoEntryPath(candidate);
-    if (await pathExists(entrypoint)) {
-      return entrypoint;
-    }
-  }
-
-  throw new Error(
-    "Unable to find Hono server entrypoint. Set CTXPACK_HONO_PATH to apps/honojs or src/index.ts.",
-  );
-}
-
 type HonoServerModule = {
   createServer?: (options?: HonoServerFactoryOptions) => HonoServerInstance;
   startServer?: (options?: HonoServerFactoryOptions) => HonoServerInstance;
@@ -1680,16 +1776,6 @@ async function loadHonoServerFactory(): Promise<{
   createServer: (options?: HonoServerFactoryOptions) => HonoServerInstance;
   source: string;
 }> {
-  try {
-    const serverModule = (await import("@ctxpack/server")) as HonoServerModule;
-    return {
-      createServer: resolveHonoServerFactory(serverModule, "@ctxpack/server"),
-      source: "@ctxpack/server",
-    };
-  } catch {
-    // Fallback to explicit/path-based loading.
-  }
-
   if (process.env.CTXPACK_HONO_PATH) {
     const explicitPath = normalizeHonoEntryPath(process.env.CTXPACK_HONO_PATH);
     if (!(await pathExists(explicitPath))) {
@@ -1707,18 +1793,7 @@ async function loadHonoServerFactory(): Promise<{
   }
 
   try {
-    const sourceDir = dirname(fileURLToPath(import.meta.url));
-    const bundledEntrypoint = resolvePath(
-      sourceDir,
-      "..",
-      "..",
-      "honojs",
-      "src",
-      "index.ts",
-    );
-    const bundledModule = (await import(
-      pathToFileURL(bundledEntrypoint).href
-    )) as HonoServerModule;
+    const bundledModule = (await import("../../honojs/src/index")) as HonoServerModule;
     return {
       createServer: resolveHonoServerFactory(
         bundledModule,
@@ -1727,17 +1802,12 @@ async function loadHonoServerFactory(): Promise<{
       source: "bundled apps/honojs/src/index.ts",
     };
   } catch {
-    // Fallback to filesystem-based discovery.
+    // Fall through to explicit error.
   }
 
-  const entrypoint = await resolveHonoEntrypointPath();
-  const moduleExports = (await import(
-    pathToFileURL(entrypoint).href
-  )) as HonoServerModule;
-  return {
-    createServer: resolveHonoServerFactory(moduleExports, entrypoint),
-    source: entrypoint,
-  };
+  throw new Error(
+    "Bundled Hono server factory is unavailable in this CLI build. Reinstall ctxpack.",
+  );
 }
 
 async function resolveDockerComposeDirectory(): Promise<string | null> {
@@ -2106,19 +2176,35 @@ function resolveProviderApiKey(
     return;
   }
 
-  if (providerApiKeyEnv && process.env[providerApiKeyEnv]) {
-    childEnv[standardEnvVar] = process.env[providerApiKeyEnv];
+  const ctxpackEnvVar = toCtxpackEnvName(standardEnvVar);
+  const ctxpackApiKey = process.env[ctxpackEnvVar];
+  if (ctxpackApiKey && ctxpackApiKey.trim().length > 0) {
+    childEnv[standardEnvVar] = ctxpackApiKey.trim();
     return;
   }
 
   const storedCred = auth[normalizedProviderId] ?? auth[providerId];
   if (storedCred?.type === "apikey" && storedCred.apiKey.trim()) {
     childEnv[standardEnvVar] = storedCred.apiKey.trim();
+    return;
+  }
+
+  if (
+    providerApiKeyEnv &&
+    providerApiKeyEnv.startsWith("CTXPACK_") &&
+    process.env[providerApiKeyEnv]
+  ) {
+    const configuredApiKey = process.env[providerApiKeyEnv];
+    if (configuredApiKey && configuredApiKey.trim()) {
+      childEnv[standardEnvVar] = configuredApiKey.trim();
+      return;
+    }
   }
 }
 
 async function handleServer(parsed: ParsedArgv): Promise<void> {
   const ensured = await ensureProjectConfig();
+  const globalConfig = await readConfig();
   await ensureCtxpackHomeDirectories();
 
   const overrideEndpoint = getOptionString(parsed.options, ["endpoint", "e"]);
@@ -2132,20 +2218,34 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
 
   const storageRoot = ensured.config.storage?.root ?? getCtxpackHomePath();
   const reposPath = ensured.config.storage?.repos ?? getCtxpackReposPath();
-  const embeddingProvider = ensured.config.provider?.id ?? "openai";
-  const embeddingModel =
-    ensured.config.models?.embedding ??
-    ensured.config.provider?.model ??
-    "text-embedding-3-small";
-  const chatProvider = ensured.config.provider?.id ?? "openai";
+  const providerConfig = resolveProviderRuntimeConfig(
+    globalConfig,
+    ensured.config,
+  );
+  const embeddingProvider = providerConfig.providerId;
+  const embeddingModel = providerConfig.embeddingModel;
+  const chatProvider = providerConfig.providerId;
   const researchProvider =
     process.env.CTXPACK_RESEARCH_PROVIDER?.toLowerCase() ?? chatProvider;
-  const chatModel = ensured.config.models?.chat ?? DEFAULT_CODEX_CHAT_MODEL;
-  const providerApiKeyEnv = ensured.config.provider?.apiKeyEnv;
+  const chatModel = providerConfig.chatModel;
+  const providerApiKeyEnv = providerConfig.providerApiKeyEnv;
   const sandboxRoot =
     process.env.CTXPACK_SANDBOX_ROOT_PATH ?? join(storageRoot, "sandbox");
 
-  const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
+  const configuredDatabaseUrl = ensured.config.server?.databaseUrl;
+  const databaseUrl =
+    process.env.CTXPACK_DATABASE_URL ??
+    configuredDatabaseUrl ??
+    DEFAULT_DATABASE_URL;
+  if (
+    process.env.DATABASE_URL &&
+    !process.env.CTXPACK_DATABASE_URL &&
+    !configuredDatabaseUrl
+  ) {
+    console.log(
+      "Ignoring ambient DATABASE_URL for ctxpack. Use CTXPACK_DATABASE_URL to override the server database.",
+    );
+  }
 
   const skipSetup = getOptionBoolean(parsed.options, ["skip-setup"]);
   let postgresStopped = false;
@@ -2225,8 +2325,9 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
     const serverEnv: Record<string, string | undefined> = {
       PORT: String(portNumber),
       DATABASE_URL: databaseUrl,
+      BETTER_AUTH_URL: process.env.CTXPACK_BETTER_AUTH_URL,
       BETTER_AUTH_BASE_URL:
-        process.env.BETTER_AUTH_BASE_URL ??
+        process.env.CTXPACK_BETTER_AUTH_BASE_URL ??
         `http://localhost:${String(portNumber)}`,
       CTXPACK_HOME: storageRoot,
       REPO_STORAGE_PATH: reposPath,
@@ -2246,6 +2347,9 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
           ? openaiOAuthCredential.accountId
           : undefined,
     };
+    for (const providerEnv of Object.values(PROVIDER_API_KEY_ENV_MAP)) {
+      serverEnv[providerEnv] = undefined;
+    }
 
     const auth = await readAuthFile();
     resolveProviderApiKey(
@@ -2254,15 +2358,16 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
       auth,
       serverEnv,
     );
-    resolveProviderApiKey(chatProvider, providerApiKeyEnv, auth, serverEnv);
+    resolveProviderApiKey(
+      chatProvider,
+      providerApiKeyEnv,
+      auth,
+      serverEnv,
+    );
 
-    if (
-      embeddingProvider === "openai" &&
-      !serverEnv.OPENAI_API_KEY &&
-      !process.env.OPENAI_API_KEY
-    ) {
+    if (embeddingProvider === "openai" && !serverEnv.OPENAI_API_KEY) {
       console.log(
-        "Warning: OpenAI embeddings require OPENAI_API_KEY (env or stored API key credential).",
+        "Warning: OpenAI embeddings require a key via `ctxpack connect openai`, CTXPACK_OPENAI_API_KEY, or ctxpack.config.jsonc provider settings.",
       );
     }
 

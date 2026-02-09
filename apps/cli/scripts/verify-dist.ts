@@ -27,4 +27,22 @@ if (missing.length) {
   process.exit(1);
 }
 
+const packageJsonUrl = new URL("../package.json", import.meta.url);
+const packageJson = (await Bun.file(packageJsonUrl).json()) as {
+  dependencies?: Record<string, string>;
+};
+const workspaceRuntimeDeps = Object.entries(packageJson.dependencies ?? {})
+  .filter(([, version]) => version.startsWith("workspace:"))
+  .map(([name, version]) => `${name}@${version}`);
+
+if (workspaceRuntimeDeps.length > 0) {
+  console.error(
+    "[ctxpack] Runtime dependencies cannot use workspace protocol in published package:",
+  );
+  for (const dep of workspaceRuntimeDeps) {
+    console.error(`- ${dep}`);
+  }
+  process.exit(1);
+}
+
 console.log("[ctxpack] All required dist artifacts are present.");

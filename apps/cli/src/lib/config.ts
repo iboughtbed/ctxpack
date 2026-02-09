@@ -7,6 +7,15 @@ export type CliConfig = {
     endpoint?: string;
     apiKey?: string;
   };
+  provider?: {
+    id?: string;
+    model?: string;
+    apiKeyEnv?: string;
+  };
+  models?: {
+    embedding?: string;
+    chat?: string;
+  };
 };
 
 export type SearchMode = "hybrid" | "text" | "vector";
@@ -15,6 +24,7 @@ export type ProjectConfig = {
   $schema?: string;
   server?: {
     endpoint?: string;
+    databaseUrl?: string;
   };
   storage?: {
     root?: string;
@@ -42,10 +52,8 @@ export type ProjectConfig = {
 const DEFAULT_ENDPOINT = "http://localhost:8787";
 const PROJECT_CONFIG_FILENAME = "ctxpack.config.jsonc";
 const DEFAULT_SCHEMA_URL = "https://ctxpack.dev/schema.json";
-const DEFAULT_PROVIDER_ID = "openai";
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-const DEFAULT_CHAT_MODEL = "gpt-5.2-codex";
-const DEFAULT_API_KEY_ENV = "OPENAI_API_KEY";
+const DEFAULT_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5432/ctxpack";
 
 export function getCtxpackHomePath(): string {
   return process.env.CTXPACK_HOME ?? join(homedir(), ".ctxpack");
@@ -122,21 +130,13 @@ export function createDefaultProjectConfig(): ProjectConfig {
     $schema: DEFAULT_SCHEMA_URL,
     server: {
       endpoint: DEFAULT_ENDPOINT,
+      databaseUrl: DEFAULT_DATABASE_URL,
     },
     storage: {
       root: homePath,
       repos: getCtxpackReposPath(),
       data: getCtxpackDataPath(),
       logs: getCtxpackLogsPath(),
-    },
-    provider: {
-      id: DEFAULT_PROVIDER_ID,
-      model: DEFAULT_EMBEDDING_MODEL,
-      apiKeyEnv: DEFAULT_API_KEY_ENV,
-    },
-    models: {
-      embedding: DEFAULT_EMBEDDING_MODEL,
-      chat: DEFAULT_CHAT_MODEL,
     },
     defaults: {
       searchMode: "hybrid",
