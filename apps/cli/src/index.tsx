@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { emitKeypressEvents } from "node:readline";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type {
   AgentStep,
@@ -59,6 +59,18 @@ declare const __VERSION__: string | undefined;
 type ApiContext = {
   client: CtxpackApiClient;
   endpoint: string;
+};
+
+type HonoServerFactoryOptions = {
+  port?: number;
+  hostname?: string;
+  idleTimeout?: number;
+};
+
+type HonoServerInstance = {
+  port?: number;
+  url?: string;
+  stop: () => void | Promise<void>;
 };
 
 const DEFAULT_PROVIDER_API_KEY_ENV: Record<string, string> = {
@@ -1577,7 +1589,15 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function resolveHonoDirectory(): Promise<string> {
+function normalizeHonoEntryPath(pathValue: string): string {
+  const trimmed = pathValue.trim();
+  if (trimmed.endsWith(".ts") || trimmed.endsWith(".tsx") || trimmed.endsWith(".js")) {
+    return trimmed;
+  }
+  return join(trimmed, "src", "index.ts");
+}
+
+async function resolveHonoEntrypointPath(): Promise<string> {
   const sourceDir = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.CTXPACK_HONO_PATH,
@@ -1587,15 +1607,72 @@ async function resolveHonoDirectory(): Promise<string> {
   ].filter((candidate): candidate is string => Boolean(candidate));
 
   for (const candidate of candidates) {
-    const packageJsonPath = join(candidate, "package.json");
-    if (await pathExists(packageJsonPath)) {
-      return candidate;
+    const entrypoint = normalizeHonoEntryPath(candidate);
+    if (await pathExists(entrypoint)) {
+      return entrypoint;
     }
   }
 
   throw new Error(
-    "Unable to find apps/honojs. Set CTXPACK_HONO_PATH to your Hono app directory.",
+    "Unable to find Hono server entrypoint. Set CTXPACK_HONO_PATH to apps/honojs or src/index.ts.",
   );
+}
+
+type HonoServerModule = {
+  createServer?: (options?: HonoServerFactoryOptions) => HonoServerInstance;
+  startServer?: (options?: HonoServerFactoryOptions) => HonoServerInstance;
+};
+
+function resolveHonoServerFactory(
+  moduleExports: HonoServerModule,
+  source: string,
+): (options?: HonoServerFactoryOptions) => HonoServerInstance {
+  const factory = moduleExports.createServer ?? moduleExports.startServer;
+  if (!factory) {
+    throw new Error(
+      `Loaded ${source} but no createServer/startServer export was found.`,
+    );
+  }
+  return factory;
+}
+
+async function loadHonoServerFactory(): Promise<{
+  createServer: (options?: HonoServerFactoryOptions) => HonoServerInstance;
+  source: string;
+}> {
+  if (process.env.CTXPACK_HONO_PATH) {
+    const explicitPath = normalizeHonoEntryPath(process.env.CTXPACK_HONO_PATH);
+    if (!(await pathExists(explicitPath))) {
+      throw new Error(`Configured CTXPACK_HONO_PATH does not exist: ${explicitPath}`);
+    }
+    const moduleExports = (await import(pathToFileURL(explicitPath).href)) as HonoServerModule;
+    return {
+      createServer: resolveHonoServerFactory(moduleExports, explicitPath),
+      source: explicitPath,
+    };
+  }
+
+  try {
+    const sourceDir = dirname(fileURLToPath(import.meta.url));
+    const bundledEntrypoint = resolvePath(sourceDir, "..", "..", "honojs", "src", "index.ts");
+    const bundledModule = (await import(pathToFileURL(bundledEntrypoint).href)) as HonoServerModule;
+    return {
+      createServer: resolveHonoServerFactory(
+        bundledModule,
+        "bundled apps/honojs/src/index.ts",
+      ),
+      source: "bundled apps/honojs/src/index.ts",
+    };
+  } catch {
+    // Fallback to filesystem-based discovery.
+  }
+
+  const entrypoint = await resolveHonoEntrypointPath();
+  const moduleExports = (await import(pathToFileURL(entrypoint).href)) as HonoServerModule;
+  return {
+    createServer: resolveHonoServerFactory(moduleExports, entrypoint),
+    source: entrypoint,
+  };
 }
 
 async function resolveDockerComposeDirectory(): Promise<string | null> {
@@ -1843,53 +1920,58 @@ function isDockerSocketPermissionError(error: unknown): boolean {
   );
 }
 
-function isIntentionalShutdown(exitCode: number, requestedShutdown: boolean): boolean {
-  return requestedShutdown && (exitCode === 0 || exitCode === 130 || exitCode === 143);
-}
-
-async function forwardSignalAndWait(
-  child: ReturnType<typeof Bun.spawn>,
-  signal: NodeJS.Signals,
-): Promise<void> {
-  try {
-    child.kill(signal);
-  } catch {
-    // Child may already be gone.
+function parsePortNumber(portValue: string): number {
+  const port = Number.parseInt(portValue, 10);
+  if (!Number.isFinite(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid port: ${portValue}`);
   }
+  return port;
 }
 
-async function withServerSignalHandling(
-  child: ReturnType<typeof Bun.spawn>,
-): Promise<{ exitCode: number; requestedShutdown: boolean }> {
-  let requestedShutdown = false;
-  let shutdownInProgress = false;
-
-  const handleSignal = async (signal: NodeJS.Signals) => {
-    if (shutdownInProgress) {
-      return;
+function applyProcessEnv(values: Record<string, string | undefined>): void {
+  for (const [key, value] of Object.entries(values)) {
+    if (typeof value === "undefined") {
+      delete process.env[key];
+      continue;
     }
-    shutdownInProgress = true;
-    requestedShutdown = true;
-    await forwardSignalAndWait(child, signal);
-  };
-
-  const onSigint = () => {
-    void handleSignal("SIGINT");
-  };
-  const onSigterm = () => {
-    void handleSignal("SIGTERM");
-  };
-
-  process.on("SIGINT", onSigint);
-  process.on("SIGTERM", onSigterm);
-
-  try {
-    const exitCode = await child.exited;
-    return { exitCode, requestedShutdown };
-  } finally {
-    process.off("SIGINT", onSigint);
-    process.off("SIGTERM", onSigterm);
+    process.env[key] = value;
   }
+}
+
+async function waitForShutdownSignal(
+  onShutdown: (signal: NodeJS.Signals) => Promise<void>,
+): Promise<NodeJS.Signals> {
+  return await new Promise<NodeJS.Signals>((resolve, reject) => {
+    let shutdownInProgress = false;
+    const cleanup = () => {
+      process.off("SIGINT", onSigint);
+      process.off("SIGTERM", onSigterm);
+    };
+    const onSignal = (signal: NodeJS.Signals) => {
+      if (shutdownInProgress) {
+        return;
+      }
+      shutdownInProgress = true;
+      void (async () => {
+        try {
+          await onShutdown(signal);
+          cleanup();
+          resolve(signal);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      })();
+    };
+    const onSigint = () => {
+      onSignal("SIGINT");
+    };
+    const onSigterm = () => {
+      onSignal("SIGTERM");
+    };
+    process.on("SIGINT", onSigint);
+    process.on("SIGTERM", onSigterm);
+  });
 }
 
 async function ensureDatabaseSchema(
@@ -1971,6 +2053,7 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
     "http://localhost:8787";
   const portOption = getOptionString(parsed.options, ["port", "p"]);
   const port = portOption ?? inferPortFromEndpoint(endpoint) ?? "8787";
+  const portNumber = parsePortNumber(port);
 
   const storageRoot = ensured.config.storage?.root ?? getCtxpackHomePath();
   const reposPath = ensured.config.storage?.repos ?? getCtxpackReposPath();
@@ -1990,132 +2073,155 @@ async function handleServer(parsed: ParsedArgv): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 
   const skipSetup = getOptionBoolean(parsed.options, ["skip-setup"]);
-  let postgresStartedByThisRun = false;
+  let postgresStopped = false;
+  let server: HonoServerInstance | null = null;
+  let stopped = false;
 
-  if (!skipSetup) {
-    const composeDir = await resolveDockerComposeDirectory();
-    try {
-      const ensuredPostgres = await ensurePostgresRunning(composeDir);
-      postgresStartedByThisRun = ensuredPostgres.startedByThisRun;
-    } catch (error) {
-      if (isDockerSocketPermissionError(error)) {
-        throw new Error(
-          "Docker access denied. Ensure your user can access the Docker daemon and retry.",
-        );
-      }
-      throw error;
-    }
-
-    const dbPackageDir = await resolveDbPackageDirectory();
-    await ensureDatabaseSchema(databaseUrl, dbPackageDir);
-  }
-
-  const honoDirectory = await resolveHonoDirectory();
-
-  // Detect OpenAI OAuth credentials and refresh if needed
-  let openaiAuthMode = "apikey";
-  let openaiOAuthCredential: OAuthCredential | undefined;
-  if (chatProvider === "openai" || researchProvider === "openai") {
-    try {
-      const oauthCred = await ensureFreshOAuthTokens("openai");
-      if (oauthCred) {
-        openaiOAuthCredential = oauthCred;
-        openaiAuthMode = "oauth";
-        console.log(
-          "OpenAI auth default: OAuth (ChatGPT subscription, fallback only)",
-        );
-      }
-    } catch (err) {
-      // OAuth not configured or refresh failed -- fall back to API key
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes("refresh failed")) {
-        console.log(
-          `Warning: OpenAI OAuth token refresh failed. Falling back to API key. Run \`ctxpack connect openai\` to re-authenticate.`,
-        );
-      }
-    }
-  }
-
-  let effectiveChatModel = chatModel;
-  if (
-    openaiAuthMode === "oauth" &&
-    (chatProvider === "openai" || researchProvider === "openai") &&
-    !CODEX_MODELS.has(effectiveChatModel)
-  ) {
-    console.log(
-      `Warning: Chat model ${effectiveChatModel} is not supported for OpenAI OAuth. Using ${DEFAULT_CODEX_CHAT_MODEL}.`,
-    );
-    effectiveChatModel = DEFAULT_CODEX_CHAT_MODEL;
-  }
-
-  console.log(`Starting server from ${honoDirectory}`);
-  console.log(`Port: ${port}`);
-  console.log(`Repo storage: ${reposPath}`);
-  console.log(
-    "Model/API config mode: per-request overrides from CLI headers are enabled.",
-  );
-  console.log(
-    "Startup values below are defaults/fallbacks when a request does not include overrides.",
-  );
-  console.log(`Default embedding fallback: ${embeddingProvider}/${embeddingModel}`);
-  console.log(
-    `Default chat fallback: ${chatProvider}/${effectiveChatModel}${openaiAuthMode === "oauth" ? " (OAuth)" : ""}`,
-  );
-
-  const childEnv: Record<string, string | undefined> = {
-    ...process.env,
-    PORT: port,
-    DATABASE_URL: databaseUrl,
-    CTXPACK_HOME: storageRoot,
-    REPO_STORAGE_PATH: reposPath,
-    CTXPACK_SANDBOX_ROOT_PATH: sandboxRoot,
-    CTXPACK_EMBEDDING_PROVIDER: embeddingProvider,
-    CTXPACK_EMBEDDING_MODEL: embeddingModel,
-    CTXPACK_CHAT_PROVIDER: chatProvider,
-    CTXPACK_CHAT_MODEL: effectiveChatModel,
-    CTXPACK_OPENAI_AUTH_MODE: openaiAuthMode === "oauth" ? "oauth" : undefined,
-    CTXPACK_OPENAI_OAUTH_ACCESS_TOKEN:
-      openaiAuthMode === "oauth" && openaiOAuthCredential
-        ? openaiOAuthCredential.accessToken
-        : undefined,
-    CTXPACK_OPENAI_OAUTH_ACCOUNT_ID:
-      openaiAuthMode === "oauth" && openaiOAuthCredential
-        ? openaiOAuthCredential.accountId
-        : undefined,
-  };
-
-  const auth = await readAuthFile();
-
-  resolveProviderApiKey(embeddingProvider, providerApiKeyEnv, auth, childEnv);
-  resolveProviderApiKey(chatProvider, providerApiKeyEnv, auth, childEnv);
-
-  if (embeddingProvider === "openai" && !childEnv.OPENAI_API_KEY) {
-    console.log(
-      "Warning: OpenAI embeddings require OPENAI_API_KEY (env or stored API key credential).",
-    );
-  }
-
-  const child = Bun.spawn(["bun", "run", "dev"], {
-    cwd: honoDirectory,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-    env: childEnv,
-  });
-
-  try {
-    const { exitCode, requestedShutdown } = await withServerSignalHandling(child);
-    if (isIntentionalShutdown(exitCode, requestedShutdown)) {
-      process.exitCode = exitCode === 0 ? 130 : exitCode;
+  const stopServer = async () => {
+    if (!server || stopped) {
       return;
     }
-    if (exitCode !== 0) {
-      throw new Error(`Server process exited with code ${String(exitCode)}`);
+    stopped = true;
+    await Promise.resolve(server.stop());
+  };
+
+  const stopManagedPostgres = async () => {
+    if (skipSetup || postgresStopped) {
+      return;
     }
+    postgresStopped = true;
+    await stopPostgresContainer(POSTGRES_CONTAINER_NAME);
+  };
+
+  try {
+    if (!skipSetup) {
+      const composeDir = await resolveDockerComposeDirectory();
+      try {
+        await ensurePostgresRunning(composeDir);
+      } catch (error) {
+        if (isDockerSocketPermissionError(error)) {
+          throw new Error(
+            "Docker access denied. Ensure your user can access the Docker daemon and retry.",
+          );
+        }
+        throw error;
+      }
+
+      const dbPackageDir = await resolveDbPackageDirectory();
+      await ensureDatabaseSchema(databaseUrl, dbPackageDir);
+    }
+
+    // Detect OpenAI OAuth credentials and refresh if needed
+    let openaiAuthMode = "apikey";
+    let openaiOAuthCredential: OAuthCredential | undefined;
+    if (chatProvider === "openai" || researchProvider === "openai") {
+      try {
+        const oauthCred = await ensureFreshOAuthTokens("openai");
+        if (oauthCred) {
+          openaiOAuthCredential = oauthCred;
+          openaiAuthMode = "oauth";
+          console.log(
+            "OpenAI auth default: OAuth (ChatGPT subscription, fallback only)",
+          );
+        }
+      } catch (err) {
+        // OAuth not configured or refresh failed -- fall back to API key
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes("refresh failed")) {
+          console.log(
+            "Warning: OpenAI OAuth token refresh failed. Falling back to API key. Run `ctxpack connect openai` to re-authenticate.",
+          );
+        }
+      }
+    }
+
+    let effectiveChatModel = chatModel;
+    if (
+      openaiAuthMode === "oauth" &&
+      (chatProvider === "openai" || researchProvider === "openai") &&
+      !CODEX_MODELS.has(effectiveChatModel)
+    ) {
+      console.log(
+        `Warning: Chat model ${effectiveChatModel} is not supported for OpenAI OAuth. Using ${DEFAULT_CODEX_CHAT_MODEL}.`,
+      );
+      effectiveChatModel = DEFAULT_CODEX_CHAT_MODEL;
+    }
+
+    const serverEnv: Record<string, string | undefined> = {
+      PORT: String(portNumber),
+      DATABASE_URL: databaseUrl,
+      BETTER_AUTH_BASE_URL:
+        process.env.BETTER_AUTH_BASE_URL ??
+        `http://localhost:${String(portNumber)}`,
+      CTXPACK_HOME: storageRoot,
+      REPO_STORAGE_PATH: reposPath,
+      CTXPACK_SANDBOX_ROOT_PATH: sandboxRoot,
+      CTXPACK_EMBEDDING_PROVIDER: embeddingProvider,
+      CTXPACK_EMBEDDING_MODEL: embeddingModel,
+      CTXPACK_CHAT_PROVIDER: chatProvider,
+      CTXPACK_CHAT_MODEL: effectiveChatModel,
+      CTXPACK_OPENAI_AUTH_MODE: openaiAuthMode === "oauth" ? "oauth" : undefined,
+      CTXPACK_OPENAI_OAUTH_ACCESS_TOKEN:
+        openaiAuthMode === "oauth" && openaiOAuthCredential
+          ? openaiOAuthCredential.accessToken
+          : undefined,
+      CTXPACK_OPENAI_OAUTH_ACCOUNT_ID:
+        openaiAuthMode === "oauth" && openaiOAuthCredential
+          ? openaiOAuthCredential.accountId
+          : undefined,
+    };
+
+    const auth = await readAuthFile();
+    resolveProviderApiKey(embeddingProvider, providerApiKeyEnv, auth, serverEnv);
+    resolveProviderApiKey(chatProvider, providerApiKeyEnv, auth, serverEnv);
+
+    if (
+      embeddingProvider === "openai" &&
+      !serverEnv.OPENAI_API_KEY &&
+      !process.env.OPENAI_API_KEY
+    ) {
+      console.log(
+        "Warning: OpenAI embeddings require OPENAI_API_KEY (env or stored API key credential).",
+      );
+    }
+
+    applyProcessEnv(serverEnv);
+
+    const { createServer, source } = await loadHonoServerFactory();
+
+    console.log(`Starting server from ${source}`);
+    console.log(`Port: ${String(portNumber)}`);
+    console.log(`Repo storage: ${reposPath}`);
+    console.log(
+      "Model/API config mode: per-request overrides from CLI headers are enabled.",
+    );
+    console.log(
+      "Startup values below are defaults/fallbacks when a request does not include overrides.",
+    );
+    console.log(
+      `Default embedding fallback: ${embeddingProvider}/${embeddingModel}`,
+    );
+    console.log(
+      `Default chat fallback: ${chatProvider}/${effectiveChatModel}${openaiAuthMode === "oauth" ? " (OAuth)" : ""}`,
+    );
+
+    server = createServer({
+      port: portNumber,
+      idleTimeout: 255,
+    });
+    const url = server.url ?? `http://localhost:${String(server.port ?? portNumber)}`;
+    console.log(`Server running at ${url}`);
+    console.log("Press Ctrl+C to stop");
+
+    const signal = await waitForShutdownSignal(async (receivedSignal) => {
+      console.log(`\nReceived ${receivedSignal}. Shutting down...`);
+      await stopServer();
+      await stopManagedPostgres();
+    });
+    process.exitCode = signal === "SIGINT" ? 130 : 143;
   } finally {
-    if (postgresStartedByThisRun) {
-      await stopPostgresContainer(POSTGRES_CONTAINER_NAME);
-    }
+    await stopServer();
+    await stopManagedPostgres();
   }
 }
 

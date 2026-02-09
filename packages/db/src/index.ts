@@ -24,3 +24,10 @@ if (process.env.NODE_ENV !== "production") globalForDb.conn = conn;
  * @see https://orm.drizzle.team/docs/sql-schema-declaration#camel-and-snake-casing
  */
 export const db = drizzle(conn, { schema, casing: "snake_case" });
+
+export async function closeDbConnection(timeoutSeconds = 5): Promise<void> {
+  await conn.end({ timeout: timeoutSeconds });
+  if (process.env.NODE_ENV !== "production") {
+    globalForDb.conn = undefined;
+  }
+}
