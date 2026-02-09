@@ -1,3 +1,5 @@
+// https://github.com/davis7dotsh/better-context/blob/main/apps/cli/scripts/verify-dist.ts
+
 const requiredFiles = [
   "ctxpack-darwin-arm64",
   "ctxpack-darwin-x64",

@@ -1,5 +1,7 @@
-import solidPlugin from "@opentui/solid/bun-plugin";
+// https://github.com/davis7dotsh/better-context/blob/main/apps/cli/scripts/build-binaries.ts
+
 import { mkdir } from "node:fs/promises";
+import solidPlugin from "@opentui/solid/bun-plugin";
 
 import packageJson from "../package.json";
 
