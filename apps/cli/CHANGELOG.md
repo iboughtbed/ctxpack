@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.3.0
+
+### Minor Changes
+
+- 93892b8: fix(cli): load honojs module from workspace
+
 ## 1.2.0
 
 ### Minor Changes
