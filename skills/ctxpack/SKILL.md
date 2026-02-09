@@ -1,143 +1,145 @@
 ---
 name: ctxpack
-description: Index and search code repositories, local folders, and codebases with ctxpack. Provides external codebase context via text, vector, and hybrid search. Includes agent-based exploration, deep research, and direct file access tools. Use when you need context from external codebases, repositories, or local projects.
+description: Index and search code repositories, local folders, and codebases. Provides context via text, vector, and hybrid search with agent exploration, deep research, and direct file access. Use when you need context from external codebases, repositories, or local projects.
 metadata:
   author: x.com/iboughtbed
-  version: "1.0.0"
+  version: "1.1.2"
 ---
 
 # ctxpack
 
-Local-first tool for indexing code repositories and local folders, then searching them via text, vector, or hybrid search. Provides external codebase context to agents. Runs locally via `ctxpack serve`.
+Local-first CLI for indexing codebases and retrieving context for agents.
 
-## Setup
+## Requirements
 
-### 1. Start local server
+- `bun>=1.3.0`
 
-```bash
-ctxpack serve [--port <n>]
+## When to use
+
+- You need to search code from external repos or local folders.
+- You need hybrid/text/vector retrieval with optional agent exploration.
+- You need direct file access over indexed resources (`ls`, `grep`, `read`, `glob`).
+
+Example triggers:
+
+```text
+"Find where auth middleware is enforced in repo X."
+"Trace indexing pipeline and compare text vs vector retrieval."
+"Read src/lib/search.ts around score fusion logic."
 ```
 
-### 2. Connect LLM provider (required for AI-powered search)
+## Bootstrap (fresh project)
 
 ```bash
-ctxpack connect         # Interactive provider select
-ctxpack connect openai  # OpenAI via OAuth
-ctxpack connect --provider <id> --model <id> [--api-key-env <ENV>]
+ctxpack                # Show setup status
+ctxpack setup          # Create ./ctxpack.config.jsonc if missing
+ctxpack skill          # Install skill: npx skills add iboughtbed/ctxpack --skill ctxpack
+ctxpack connect openai # OAuth flow; or: ctxpack connect --provider <id> ...
+ctxpack serve          # Start local server (default http://localhost:8787)
 ```
 
-### 3. Add a resource
+## Core workflow
+
+### 1. Add resources
 
 ```bash
-ctxpack add <url-or-path> [--name <name>] [--type git|local] [--branch <branch>] [--commit <sha>] [--paths <a,b>] [--notes <text>] [--index]
+ctxpack add <url-or-path> [--name <name>] [--type git|local] [--branch <branch>] [--commit <sha>] [--paths <a,b>] [--notes <text>] [--index] [--global]
 ```
-
-Examples:
 
 ```bash
-ctxpack add . --type local --paths ./src --name my-project --index
-ctxpack add https://github.com/org/repo --name repo --index
+ctxpack add https://github.com/acme/platform --type git --name acme-platform --index
+ctxpack add ./services/api --type local --name api-local --paths src,package.json --index
 ```
 
-## Resource Management
+### 2. Sync and index
 
 ```bash
-ctxpack list                              # List all resources
-ctxpack rm <resource-id>                  # Remove a resource
-ctxpack index <resource-id>               # Index a resource (embed for vector search)
-ctxpack reindex <name-or-id> [...]        # Re-index (re-embeds; git repos also pull latest)
-ctxpack reindex --all                     # Re-index all resources
-ctxpack job <job-id>                      # Check indexing job status
+ctxpack sync <name-or-id> [...] [--all] [--global]
+ctxpack index <name-or-id> [...] [--all] [--sync] [--global]
+ctxpack job <job-id>
 ```
-
-## Search
-
-Four modes, from fastest to most thorough:
 
 ```bash
-ctxpack search <query>                    # Quick AI answer (~2-3s)
-ctxpack search <query> --raw              # Raw ranked chunks, no AI
-ctxpack search <query> --explore          # Agent-based exploration with tools (~10-30s)
-ctxpack search <query> --research         # Deep research, 50 steps (~1-5min)
+ctxpack sync acme-platform
+ctxpack index acme-platform --sync   # sync + index in one step
+ctxpack job 6b0e3c66-2b27-4d75-9aa6-725a3e9f2b0f
 ```
 
-`ctxpack ask <query>` is an alias for `search --explore`.
+### 3. Query
 
-### Search Options
+| Command                                     | Behavior                                               |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `ctxpack ask <query>`                       | Agent-based exploration (alias for `search --explore`) |
+| `ctxpack search <query>`                    | Quick AI-generated answer                              |
+| `ctxpack search <query> --raw`              | Raw chunks only, no AI answer                          |
+| `ctxpack search <query> --explore`          | Agent-based exploration                                |
+| `ctxpack search <query> --research`         | Deep multi-step research                               |
+| `ctxpack search <query> --research --async` | Background research job                                |
+| `ctxpack research-status <job-id>`          | Poll async research status                             |
 
 ```bash
---resource, -r <name-or-id>     # Scope to specific resource(s) (omit for all)
---mode <hybrid|text|vector>     # Search strategy (default: hybrid)
---stream                        # Stream response via SSE
---verbose, -v                   # Show agent trace (explore/research)
---top-k <n>                     # Max context chunks
---alpha <0-1>                   # Hybrid weight (0 = text only, 1 = vector only)
+ctxpack ask "Where is request-level model config applied?" -r acme-platform
+ctxpack search "hybrid score fusion" --raw -r acme-platform --top-k 8
+ctxpack search "trace indexing pipeline" --research --async -r acme-platform
+ctxpack research-status <job-id>
 ```
 
-### Async Research
+### 4. Direct file access
+
+All direct file commands require `--resource`.
 
 ```bash
-ctxpack search <query> --research --async   # Returns job ID
-ctxpack research-status <job-id>            # Check result
+ctxpack ls --resource <name-or-id> [--path <subpath>]
+ctxpack grep <pattern> --resource <name-or-id> [--paths a,b] [--case-sensitive]
+ctxpack read <filepath> --resource <name-or-id> [--start-line N] [--end-line N]
+ctxpack glob <pattern> --resource <name-or-id>
 ```
-
-## Tool Commands — Direct Resource Access
-
-Navigate and read files in indexed resources directly. These work independently of vector indexing — text-only, no embeddings required.
 
 ```bash
-ctxpack list --resource <name-or-id> [--path <subpath>]                          # List files
-ctxpack grep <pattern> --resource <name-or-id> [--paths a,b] [--case-sensitive]  # Grep code
-ctxpack read <filepath> --resource <name-or-id> [--start-line N] [--end-line N]  # Read file
-ctxpack glob <pattern> --resource <name-or-id>                                   # Glob match
+ctxpack ls --resource acme-platform --path apps/honojs/src
+ctxpack grep "resolveModelConfig" --resource acme-platform --paths apps/cli/src
+ctxpack read apps/cli/src/index.tsx --resource acme-platform --start-line 380 --end-line 470
+ctxpack glob "**/*.test.ts" --resource acme-platform
 ```
 
-Use these tools to explore resource file trees, read specific files, and grep for patterns — gives the agent direct file system access over indexed codebases.
+## Key options
 
-## Authentication
+| Flag                            | Description                                       |
+| ------------------------------- | ------------------------------------------------- |
+| `--resource, -r <name-or-id>`   | Scope query to specific resource(s)               |
+| `--mode <hybrid\|text\|vector>` | Retrieval mode (default: hybrid)                  |
+| `--top-k <n>`                   | Max context chunks returned                       |
+| `--alpha <0-1>`                 | Hybrid weighting (0 = text only, 1 = vector only) |
+| `--stream`                      | Stream answer tokens and events                   |
+| `--verbose, -v`                 | Include explore/research trace                    |
+| `--global, -g`                  | Use global resource scope                         |
+| `--endpoint <url>`              | Override API target                               |
+| `--api-key <key>`               | Override API credentials                          |
 
 ```bash
-ctxpack auth status                # Show stored credentials
-ctxpack auth logout [provider]     # Remove credentials
-ctxpack disconnect                 # Disconnect LLM providers
+ctxpack search "oauth fallback behavior" \
+  --mode hybrid \
+  --alpha 0.35 \
+  --top-k 12 \
+  --resource acme-platform \
+  --stream \
+  --verbose
 ```
 
-Credentials stored in ctxpack auth, mirrored to OpenCode-compatible format:
-
-- Linux/macOS: `~/.local/share/opencode/auth.json`
-- Windows: `%APPDATA%/opencode/auth.json`
-
-## Configuration
-
-```bash
-ctxpack setup [--force]            # Initialize/refresh project config
-ctxpack config                     # Show/edit configuration
-```
-
-## Remote
-
-Connect to a remote ctxpack server instead of running locally:
+## Remote mode
 
 ```bash
 ctxpack remote link --key <api-key> [--endpoint <url>]
 ctxpack remote unlink
 ctxpack remote add ...
-ctxpack remote list
+ctxpack remote resources
 ctxpack remote ask ...
 ctxpack remote rm <resource-id>
 ```
 
-## Global Options
+## Guardrails
 
-```bash
---endpoint <url>    # Override API endpoint
---api-key <key>     # Override API key for this command
-```
-
-## Notes
-
-- **Text tools work without vector indexing** — `list`, `grep`, `read`, `glob` only need synced content.
-- **Embeddings require an API-key-capable provider** — OpenAI OAuth (ChatGPT Plus/Pro) supports chat/reasoning only, not embeddings.
-- **Hybrid search** combines vector similarity with text grep for best results.
-- **Model/provider overrides are per-request** — CLI forwards via headers, no server restart needed.
-- **Content sync and vector indexing are separate** — syncing pulls files, indexing embeds them.
+- Run `ctxpack resources` to list available resources before querying.
+- Prefer `ctxpack ask` for general QA; use `search` when you need explicit control over mode, raw output, or research depth.
+- All direct file commands (`ls`, `grep`, `read`, `glob`) require `--resource`.
+- Indexing into the vector database requires an API key for an embedding model (set via `ctxpack connect`).
