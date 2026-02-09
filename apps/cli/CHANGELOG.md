@@ -1,5 +1,12 @@
 # ctxpack
 
+## 1.3.1
+
+### Patch Changes
+
+- 6a2db30: fix: isolated packages and environmental variables for ctxpack
+- badbd2d: fix: isolated packages and environmental variables for ctxpack
+
 ## 1.3.0
 
 ### Minor Changes
