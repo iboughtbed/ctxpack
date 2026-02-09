@@ -1,5 +1,11 @@
 # ctxpack
 
+## 1.1.1
+
+### Patch Changes
+
+- 2627d14: implement "skill" command to install a skill for agents
+
 ## 1.1.0
 
 ### Minor Changes
