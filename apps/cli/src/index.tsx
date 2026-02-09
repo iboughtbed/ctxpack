@@ -1640,6 +1640,16 @@ async function loadHonoServerFactory(): Promise<{
   createServer: (options?: HonoServerFactoryOptions) => HonoServerInstance;
   source: string;
 }> {
+  try {
+    const serverModule = (await import("@repo/server")) as HonoServerModule;
+    return {
+      createServer: resolveHonoServerFactory(serverModule, "@repo/server"),
+      source: "@repo/server",
+    };
+  } catch {
+    // Fallback to explicit/path-based loading.
+  }
+
   if (process.env.CTXPACK_HONO_PATH) {
     const explicitPath = normalizeHonoEntryPath(process.env.CTXPACK_HONO_PATH);
     if (!(await pathExists(explicitPath))) {
