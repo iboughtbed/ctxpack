@@ -82,8 +82,14 @@ function ensureCodexInstructionsBody(
     }
     // Codex backend requires store to be explicitly false.
     next.store = false;
-    // Codex backend requires stream to be explicitly true.
-    next.stream = true;
+    // Preserve SDK stream mode. For non-stream requests, make it explicit.
+    if (
+      !("stream" in next) ||
+      next.stream === undefined ||
+      next.stream === null
+    ) {
+      next.stream = false;
+    }
     return JSON.stringify(next);
   } catch {
     return body;
