@@ -160,6 +160,7 @@ function printHelp(): void {
       "Status and setup:",
       "  ctxpack                                            Show setup status and next steps",
       "  ctxpack setup [--force]                            Initialize project config",
+      "  ctxpack skill                                      Install the ctxpack agent skill",
       "  ctxpack help                                       Show this help",
       "  ctxpack --version, -v                              Print CLI version",
       "",
@@ -455,6 +456,30 @@ async function handleStatus(): Promise<void> {
   console.log("  ctxpack add ...");
   console.log("  ctxpack connect");
   console.log("For more info, run `ctxpack help`.");
+}
+
+async function handleSkill(): Promise<void> {
+  const installCommand = [
+    "npx",
+    "skills",
+    "add",
+    "iboughtbed/ctxpack",
+    "--skill",
+    "ctxpack",
+  ];
+
+  const child = Bun.spawn(installCommand, {
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+
+  const exitCode = await child.exited;
+  if (exitCode !== 0) {
+    throw new Error(
+      `Failed to install ctxpack skill (exit code ${String(exitCode)}). Command: ${installCommand.join(" ")}`,
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -2286,6 +2311,9 @@ async function runCommand(parsed: ParsedArgv): Promise<void> {
     case "setup":
     case "init":
       await handleSetup(parsed);
+      return;
+    case "skill":
+      await handleSkill();
       return;
     case "connect":
       await handleConnect(parsed);

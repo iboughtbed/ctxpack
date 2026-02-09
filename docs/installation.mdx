@@ -24,6 +24,18 @@ ctxpack setup
 
 `ctxpack` will tell you setup status. `ctxpack setup` creates `./ctxpack.config.jsonc` when missing.
 
+After setup, install the agent skill (optional):
+
+```bash
+ctxpack skill
+```
+
+This runs:
+
+```bash
+npx skills add iboughtbed/ctxpack --skill ctxpack
+```
+
 ## Connect a Provider
 
 ```bash
